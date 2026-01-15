@@ -143,23 +143,16 @@ Download the latest release for your platform from the [Releases page](https://g
 | macOS (Intel) | `open-wemo-mac-intel` | Older Intel Macs |
 | Linux | `open-wemo-linux` | Ubuntu, Debian, Fedora, etc. |
 
-**Install it to a permanent location:**
-
-Don't just run it from your Downloads folder — move it somewhere permanent so the "Start on login" feature works correctly.
-
-- **Windows**: Create a folder at `C:\Program Files\Open Wemo` and move the `.exe` there.
-- **macOS**: Move the file to `/Applications` or `~/Applications`.
-- **Linux**: Move to `/opt/open-wemo` or `~/.local/bin`.
-
 **Run it:**
-- **Windows**: Double-click the `.exe` file. If Windows Defender warns you, click "More info" → "Run anyway" (the app is safe, just not signed yet).
+- **Windows**: Double-click the `.exe` file. If Windows Defender warns you, click "More info" → "Run anyway" (the app is safe, just not signed yet). On first run, it automatically installs itself to `%LOCALAPPDATA%\Open Wemo`.
 - **macOS**: Right-click and select "Open" the first time (bypasses Gatekeeper). You may need to allow it in System Preferences → Security.
 - **Linux**: Make it executable (`chmod +x open-wemo-linux`) and run it.
 
 **What happens:**
-1. A small icon appears in your system tray (taskbar on Windows, menu bar on macOS)
-2. A welcome window opens with a QR code for phone setup
-3. The bridge starts discovering WeMo devices automatically
+1. The app automatically installs itself to a permanent location (Windows: AppData, macOS: ~/Applications, Linux: ~/.local/bin)
+2. A small icon appears in your system tray (taskbar on Windows, menu bar on macOS)
+3. A welcome window opens with a QR code for phone setup
+4. The bridge starts discovering WeMo devices automatically
 
 ### Step 2: Install the Phone App
 
