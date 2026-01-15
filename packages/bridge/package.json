@@ -1,0 +1,30 @@
+{
+  "name": "@open-wemo/bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop tray app + REST API server for Open Wemo",
+  "type": "module",
+  "main": "src/main.ts",
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "build": "bun build src/main.ts --compile --outfile=dist/open-wemo",
+    "build:windows": "bun build src/main.ts --compile --target=bun-windows-x64 --outfile=dist/open-wemo-win.exe",
+    "build:mac": "bun build src/main.ts --compile --target=bun-darwin-arm64 --outfile=dist/open-wemo-mac",
+    "build:mac-intel": "bun build src/main.ts --compile --target=bun-darwin-x64 --outfile=dist/open-wemo-mac-intel",
+    "build:linux": "bun build src/main.ts --compile --target=bun-linux-x64 --outfile=dist/open-wemo-linux",
+    "build:all": "bun run build:windows && bun run build:mac && bun run build:mac-intel && bun run build:linux",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.3.3",
+    "hono": "^4.11.4",
+    "qrcode": "^1.5.4",
+    "systray2": "^2.1.4"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0",
+    "@types/qrcode": "^1.5.6",
+    "typescript": "^5.6.0"
+  }
+}

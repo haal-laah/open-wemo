@@ -1,0 +1,292 @@
+/**
+ * WeMo Device Client
+ *
+ * High-level client for controlling WeMo devices via SOAP.
+ */
+
+import { extractNumericValue, extractTextValue, soapRequest } from "./soap";
+import type { DeviceState, WemoDevice, WemoService } from "./types";
+
+/**
+ * Service type constants for WeMo devices.
+ */
+const BASIC_EVENT_SERVICE = "urn:Belkin:service:basicevent:1";
+
+/**
+ * Default retry configuration.
+ */
+const DEFAULT_RETRY_COUNT = 2;
+const DEFAULT_RETRY_DELAY = 500;
+
+/**
+ * Error thrown when a device operation fails.
+ */
+export class DeviceError extends Error {
+  public readonly deviceId: string;
+  public readonly operation: string;
+
+  constructor(message: string, deviceId: string, operation: string, cause?: Error) {
+    super(message, { cause });
+    this.name = "DeviceError";
+    this.deviceId = deviceId;
+    this.operation = operation;
+  }
+}
+
+/**
+ * Client for controlling a WeMo device.
+ *
+ * @example
+ * ```ts
+ * const device = await getDeviceByAddress("192.168.1.100");
+ * const client = new WemoDeviceClient(device);
+ *
+ * // Get current state
+ * const state = await client.getState();
+ * console.log(state.binaryState === 1 ? "ON" : "OFF");
+ *
+ * // Turn on
+ * await client.setState(true);
+ *
+ * // Toggle
+ * const newState = await client.toggle();
+ * ```
+ */
+export class WemoDeviceClient {
+  private readonly device: WemoDevice;
+  private readonly basicEventService: WemoService | undefined;
+
+  constructor(device: WemoDevice) {
+    this.device = device;
+    this.basicEventService = device.services.find((s) => s.serviceType.includes("basicevent"));
+  }
+
+  /**
+   * Gets the device info.
+   */
+  get info(): WemoDevice {
+    return this.device;
+  }
+
+  /**
+   * Gets the device ID.
+   */
+  get id(): string {
+    return this.device.id;
+  }
+
+  /**
+   * Gets the device name.
+   */
+  get name(): string {
+    return this.device.name;
+  }
+
+  /**
+   * Gets the device host (IP address).
+   */
+  get host(): string {
+    return this.device.host;
+  }
+
+  /**
+   * Gets the device port.
+   */
+  get port(): number {
+    return this.device.port;
+  }
+
+  /**
+   * Gets the control URL for basic event service.
+   */
+  private get controlURL(): string {
+    return this.basicEventService?.controlURL ?? "/upnp/control/basicevent1";
+  }
+
+  /**
+   * Executes a SOAP request with retry logic.
+   */
+  private async executeWithRetry<T>(
+    action: string,
+    body?: string,
+    retries = DEFAULT_RETRY_COUNT
+  ): Promise<T> {
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const response = await soapRequest<T>(
+        this.device.host,
+        this.device.port,
+        this.controlURL,
+        BASIC_EVENT_SERVICE,
+        action,
+        body
+      );
+
+      if (response.success && response.data !== undefined) {
+        return response.data;
+      }
+
+      lastError = new Error(response.error ?? "Unknown error");
+
+      // Don't retry on last attempt
+      if (attempt < retries) {
+        await this.delay(DEFAULT_RETRY_DELAY * (attempt + 1));
+      }
+    }
+
+    throw new DeviceError(
+      `Failed to ${action} after ${retries + 1} attempts: ${lastError?.message}`,
+      this.device.id,
+      action,
+      lastError
+    );
+  }
+
+  /**
+   * Delays execution for a specified duration.
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Gets the current binary state of the device.
+   *
+   * @returns 0 for off, 1 for on, 8 for standby (Insight devices)
+   */
+  async getBinaryState(): Promise<0 | 1 | 8> {
+    interface BinaryStateResponse {
+      BinaryState?: unknown;
+    }
+
+    const response = await this.executeWithRetry<BinaryStateResponse>("GetBinaryState");
+    const state = extractNumericValue(response.BinaryState);
+
+    // Normalize to valid values
+    if (state === 0) return 0;
+    if (state === 8) return 8;
+    return 1;
+  }
+
+  /**
+   * Sets the binary state of the device.
+   *
+   * @param state - 0 for off, 1 for on
+   */
+  async setBinaryState(state: 0 | 1): Promise<void> {
+    await this.executeWithRetry("SetBinaryState", `<BinaryState>${state}</BinaryState>`);
+  }
+
+  /**
+   * Gets the current state of the device.
+   *
+   * @returns Device state including binary state and brightness (if applicable)
+   */
+  async getState(): Promise<DeviceState> {
+    const binaryState = await this.getBinaryState();
+
+    const state: DeviceState = {
+      binaryState,
+    };
+
+    // TODO: Add brightness support for dimmer devices
+
+    return state;
+  }
+
+  /**
+   * Sets the device state (on or off).
+   *
+   * @param on - true to turn on, false to turn off
+   */
+  async setState(on: boolean): Promise<void> {
+    await this.setBinaryState(on ? 1 : 0);
+  }
+
+  /**
+   * Turns the device on.
+   */
+  async turnOn(): Promise<void> {
+    await this.setState(true);
+  }
+
+  /**
+   * Turns the device off.
+   */
+  async turnOff(): Promise<void> {
+    await this.setState(false);
+  }
+
+  /**
+   * Toggles the device state.
+   *
+   * @returns The new state after toggling
+   */
+  async toggle(): Promise<DeviceState> {
+    const currentState = await this.getBinaryState();
+    // Explicitly type the new state to avoid unsafe assertion
+    const newState: 0 | 1 = currentState === 0 ? 1 : 0;
+    await this.setBinaryState(newState);
+
+    return {
+      binaryState: newState,
+    };
+  }
+
+  /**
+   * Gets the friendly name of the device.
+   */
+  async getFriendlyName(): Promise<string> {
+    interface FriendlyNameResponse {
+      FriendlyName?: unknown;
+    }
+
+    const response = await this.executeWithRetry<FriendlyNameResponse>("GetFriendlyName");
+    return extractTextValue(response.FriendlyName) || this.device.name;
+  }
+
+  /**
+   * Sets the friendly name of the device.
+   *
+   * @param name - New name for the device
+   */
+  async setFriendlyName(name: string): Promise<void> {
+    // Escape XML special characters
+    const escapedName = name
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+
+    await this.executeWithRetry(
+      "ChangeFriendlyName",
+      `<FriendlyName>${escapedName}</FriendlyName>`
+    );
+  }
+
+  /**
+   * Checks if the device is reachable.
+   *
+   * @returns true if device responds, false otherwise
+   */
+  async isReachable(): Promise<boolean> {
+    try {
+      await this.getBinaryState();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
+ * Creates a device client from a WemoDevice object.
+ *
+ * @param device - The WemoDevice to create a client for
+ * @returns A new WemoDeviceClient instance
+ */
+export function createDeviceClient(device: WemoDevice): WemoDeviceClient {
+  return new WemoDeviceClient(device);
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@open-wemo/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PWA frontend for Open Wemo",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch serve.ts",
+    "build": "echo 'PWA is static, no build needed'",
+    "typecheck": "echo 'Vanilla JS, no typecheck needed'"
+  }
+}

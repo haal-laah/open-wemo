@@ -1,0 +1,35 @@
+{
+  "name": "open-wemo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source solution for controlling Belkin WeMo smart home devices",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "bun run --filter @open-wemo/bridge dev",
+    "dev:web": "bun run --filter @open-wemo/web dev",
+    "build": "bun scripts/build.ts",
+    "build:windows": "bun scripts/build.ts windows",
+    "build:mac": "bun scripts/build.ts mac",
+    "build:mac-intel": "bun scripts/build.ts mac-intel",
+    "build:linux": "bun scripts/build.ts linux",
+    "build:all": "bun scripts/build.ts all",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "@types/bun": "^1.1.0",
+    "typescript": "^5.6.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/haal-laah/open-wemo.git"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Open Wemo">
+  <meta name="description" content="Control your WeMo smart home devices">
+  
+  <title>Open Wemo</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- Icons -->
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css?v=8">
+</head>
+<body>
+  <a href="#app" class="skip-link">Skip to main content</a>
+  <header class="app-header" role="banner">
+    <div class="app-brand">
+      <img src="icons/icon.svg" alt="" class="app-logo" width="32" height="32">
+      <h1 class="app-title">Open Wemo</h1>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-icon" id="add-device-btn" aria-label="Add device">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 8v8"/>
+          <path d="M8 12h8"/>
+        </svg>
+      </button>
+      <button class="btn btn-icon" id="refresh-btn" aria-label="Refresh devices">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+          <path d="M16 21h5v-5"/>
+        </svg>
+      </button>
+      <button class="btn btn-icon" id="settings-btn" aria-label="Settings">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+  
+  <main id="app" role="main" aria-live="polite">
+    <!-- Device list will be rendered here by JavaScript -->
+    <div class="loading" id="initial-loading" role="status" aria-label="Loading">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Loading devices...</p>
+    </div>
+  </main>
+  
+  <!-- Toast notifications -->
+  <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+  
+  <!-- PWA Install Banner -->
+  <div id="install-banner" class="install-banner hidden" role="dialog" aria-modal="true" aria-labelledby="install-banner-title">
+    <div class="install-banner-card">
+      <div class="install-banner-icon">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+      </div>
+      <div class="install-banner-content">
+        <div class="install-banner-title" id="install-banner-title">Install Open Wemo</div>
+        <div class="install-banner-text">Install this app on your device for quick access and a better experience — no app store needed!</div>
+      </div>
+      <div class="install-banner-actions">
+        <button class="btn btn-primary" id="install-banner-btn">Install App</button>
+        <button class="btn-dismiss" id="install-banner-close">Maybe later</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Discovery Modal -->
+  <div id="discovery-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="discovery-title">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="discovery-title">Add Devices</h2>
+        <button class="btn btn-icon modal-close" id="discovery-close" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6L6 18"/>
+            <path d="M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" id="discovery-content">
+        <!-- Discovery content rendered by JS -->
+      </div>
+      <div class="modal-footer" id="discovery-footer">
+        <!-- Footer buttons rendered by JS -->
+      </div>
+    </div>
+  </div>
+  
+  <!-- iOS Install Instructions Modal -->
+  <div id="ios-install-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="ios-install-title">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content ios-install-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="ios-install-title">Install Open Wemo</h2>
+        <button class="btn btn-icon modal-close" id="ios-install-close" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6L6 18"/>
+            <path d="M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="ios-install-intro">To install this app on your iPhone or iPad:</p>
+        
+        <ol class="ios-install-steps">
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                <polyline points="16 6 12 2 8 6"/>
+                <line x1="12" y1="2" x2="12" y2="15"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Tap the Share button</div>
+              <div class="ios-install-step-text">Find the share icon at the bottom of Safari (square with arrow pointing up)</div>
+            </div>
+          </li>
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <line x1="12" y1="8" x2="12" y2="16"/>
+                <line x1="8" y1="12" x2="16" y2="12"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Select "Add to Home Screen"</div>
+              <div class="ios-install-step-text">Scroll down in the share menu and tap "Add to Home Screen"</div>
+            </div>
+          </li>
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Tap "Add"</div>
+              <div class="ios-install-step-text">Confirm by tapping "Add" in the top right corner</div>
+            </div>
+          </li>
+        </ol>
+        
+        <p class="ios-install-footer">The app will appear on your home screen!</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Generic Install Instructions Modal (for browsers without native install prompt) -->
+  <div id="generic-install-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="generic-install-title">
+    <div class="modal-backdrop"></div>
+    <!-- Bouncing arrow pointing to browser menu -->
+    <div class="install-menu-arrow" aria-hidden="true">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 19V5"/>
+        <polyline points="5 12 12 5 19 12"/>
+      </svg>
+    </div>
+    <div class="modal-content ios-install-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="generic-install-title">Install Open Wemo</h2>
+        <button class="btn btn-icon modal-close" id="generic-install-close" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6L6 18"/>
+            <path d="M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="ios-install-intro">To install this app on your device:</p>
+        
+        <ol class="ios-install-steps">
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <!-- Vertical three dots for Android -->
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="5" r="1.5" fill="currentColor"/>
+                <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+                <circle cx="12" cy="19" r="1.5" fill="currentColor"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Open browser menu</div>
+              <div class="ios-install-step-text">Tap the menu icon (⋮) in the top right corner</div>
+            </div>
+          </li>
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <line x1="12" y1="8" x2="12" y2="16"/>
+                <line x1="8" y1="12" x2="16" y2="12"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Select "Install app" or "Add to Home Screen"</div>
+              <div class="ios-install-step-text">Look for the install option in the menu</div>
+            </div>
+          </li>
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Confirm installation</div>
+              <div class="ios-install-step-text">Follow the prompts to complete installation</div>
+            </div>
+          </li>
+        </ol>
+        
+        <p class="ios-install-footer">The app will appear on your home screen!</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="settings-title">Settings</h2>
+        <button class="btn btn-icon modal-close" id="settings-close" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6L6 18"/>
+            <path d="M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <!-- Auto-refresh setting -->
+        <div class="settings-group">
+          <label class="settings-label">Auto-refresh interval</label>
+          <div class="settings-options">
+            <label class="settings-option">
+              <input type="radio" name="refresh-interval" value="15000">
+              <span>15 seconds</span>
+            </label>
+            <label class="settings-option">
+              <input type="radio" name="refresh-interval" value="30000" checked>
+              <span>30 seconds</span>
+            </label>
+            <label class="settings-option">
+              <input type="radio" name="refresh-interval" value="60000">
+              <span>60 seconds</span>
+            </label>
+            <label class="settings-option">
+              <input type="radio" name="refresh-interval" value="0">
+              <span>Off</span>
+            </label>
+          </div>
+        </div>
+        
+        <!-- Theme setting -->
+        <div class="settings-group">
+          <label class="settings-label">Theme</label>
+          <div class="settings-options">
+            <label class="settings-option">
+              <input type="radio" name="theme" value="dark" checked>
+              <span>Dark</span>
+            </label>
+            <label class="settings-option">
+              <input type="radio" name="theme" value="light">
+              <span>Light</span>
+            </label>
+            <label class="settings-option">
+              <input type="radio" name="theme" value="system">
+              <span>System</span>
+            </label>
+          </div>
+        </div>
+        
+        <!-- Install & Share -->
+        <div class="settings-group" id="settings-install-row">
+          <div class="settings-button-row">
+            <button class="btn btn-primary settings-action-btn" id="settings-install-btn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Install
+            </button>
+            <button class="btn settings-action-btn" id="settings-share-btn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <rect x="7" y="7" width="10" height="10" rx="1" ry="1"/>
+                <path d="M7 12h2m2 0h2m2 0h2"/>
+                <path d="M12 7v2m0 2v2m0 2v2"/>
+              </svg>
+              Share
+            </button>
+          </div>
+          <p class="settings-install-hint">Install the app or share with another device</p>
+        </div>
+        
+        <!-- Divider -->
+        <hr class="settings-divider">
+        
+        <!-- About section -->
+        <div class="settings-about">
+          <h3 class="settings-about-title">About</h3>
+          <div class="settings-about-row">
+            <span class="settings-about-label">Version</span>
+            <span class="settings-about-value">0.1.0</span>
+          </div>
+          <div class="settings-about-row">
+            <span class="settings-about-label">Bridge Status</span>
+            <span class="settings-about-value" id="bridge-status">
+              <span class="status-dot status-dot-connected"></span>
+              Connected
+            </span>
+          </div>
+          <div class="settings-about-row">
+            <a href="https://github.com/haal-laah/open-wemo" target="_blank" rel="noopener" class="settings-link">
+              View on GitHub
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- QR Code Share Modal -->
+  <div id="qr-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="qr-modal-title">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content qr-modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="qr-modal-title">Share Open Wemo</h2>
+        <button class="btn btn-icon modal-close" id="qr-modal-close" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6L6 18"/>
+            <path d="M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body qr-modal-body">
+        <p class="qr-modal-intro">Scan this QR code with another device to install Open Wemo</p>
+        <div class="qr-code-container" id="qr-code-container">
+          <!-- QR code will be generated here -->
+          <div class="qr-code-loading">
+            <div class="spinner"></div>
+            <p>Generating QR code...</p>
+          </div>
+        </div>
+        <p class="qr-modal-url" id="qr-modal-url"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Code Library (lightweight) -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  
+  <!-- Scripts -->
+  <script type="module" src="js/app.js?v=8"></script>
+</body>
+</html>
