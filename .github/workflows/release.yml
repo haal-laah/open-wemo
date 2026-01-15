@@ -22,7 +22,7 @@ jobs:
             os: macos-latest
             artifact: open-wemo-*-mac
           - platform: mac-intel
-            os: macos-13  # Intel runner
+            os: macos-latest  # Cross-compile from ARM runner
             artifact: open-wemo-*-mac-intel
           - platform: linux
             os: ubuntu-latest
