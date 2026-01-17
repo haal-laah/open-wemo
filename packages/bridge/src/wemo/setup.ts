@@ -8,7 +8,7 @@
  * 3. Sends encrypted WiFi credentials via SOAP
  */
 
-import { createCipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createHash } from "node:crypto";
 import { networkInterfaces } from "node:os";
 import { XMLParser } from "fast-xml-parser";
 
@@ -196,128 +196,153 @@ export async function detectSetupDevice(): Promise<SetupDetectionResult> {
 // ============================================
 
 /**
- * Magic string used in encryption method 2.
- * From pywemo: used for devices with binaryOption flag.
+ * Magic string used in encryption method 2 (rtos=1 devices).
+ * From pywemo source code.
  */
-const ENCRYPTION_MAGIC = "b3{8t;80dIN{ra83eC1s?M70?683@2Yf";
+const ENCRYPTION_MAGIC_METHOD_2 = "b3{8t;80dIN{ra83eC1s?M70?683@2Yf";
+
+/**
+ * Magic string for method 3 (binaryOption=1 devices).
+ * This is pre-computed from the pywemo algorithm:
+ * characters = "Onboard$Application@Device&Information#Wemo"
+ * mixed by alternating prepend/append pattern
+ * then base64 encoded and truncated to 32 chars
+ */
+const ENCRYPTION_EXTRA_METHOD_3 = "b2Ujb3Rtb24mY3ZEbmlhaXBBZGFiT25v";
 
 /**
  * Encryption method types.
- * Method 3 with addLengths=true is most common for newer devices.
+ * - Method 1: Original devices
+ * - Method 2: rtos=1 or new_algo=1 devices (most common including Insight)
+ * - Method 3: binaryOption=1 devices
  */
 export enum EncryptionMethod {
-  METHOD_1 = 1, // Basic: mac[:6] + serial + mac[6:12]
-  METHOD_2 = 2, // Method 1 + magic string
-  METHOD_3 = 3, // Complex mixing + base64
+  METHOD_1 = 1,
+  METHOD_2 = 2,
+  METHOD_3 = 3,
 }
 
 /**
- * Generates the encryption key from MAC address and serial number.
+ * Generates the keydata string from MAC address and serial number.
+ * This keydata is used as the password for OpenSSL-style encryption.
  *
  * @param mac - Device MAC address (12 hex chars, no separators)
  * @param serial - Device serial number
  * @param method - Encryption method (1, 2, or 3)
- * @returns 16-byte key buffer
+ * @returns Keydata string
  */
 export function generateKeydata(
   mac: string,
   serial: string,
-  method: EncryptionMethod = EncryptionMethod.METHOD_3
-): Buffer {
-  // Clean MAC address - remove any separators
-  const cleanMac = mac.replace(/[^a-fA-F0-9]/g, "").toUpperCase();
+  method: EncryptionMethod = EncryptionMethod.METHOD_2
+): string {
+  // Clean MAC address - remove any separators, keep as-is (don't uppercase)
+  // pywemo uses the MAC as-is from the device
+  const cleanMac = mac.replace(/[^a-fA-F0-9]/g, "");
 
   if (cleanMac.length !== 12) {
     throw new Error(`Invalid MAC address length: ${cleanMac.length}, expected 12`);
   }
 
-  let keyString: string;
-
   switch (method) {
     case EncryptionMethod.METHOD_1:
-      // mac[:6] + serial + mac[6:12]
-      keyString = cleanMac.slice(0, 6) + serial + cleanMac.slice(6, 12);
-      break;
+      // Original method: mac[:6] + serial + mac[6:12]
+      return cleanMac.slice(0, 6) + serial + cleanMac.slice(6, 12);
 
     case EncryptionMethod.METHOD_2:
-      // Method 1 + magic string
-      keyString = cleanMac.slice(0, 6) + serial + cleanMac.slice(6, 12) + ENCRYPTION_MAGIC;
-      break;
+      // rtos=1 devices: mac[:6] + serial + mac[6:12] + magic
+      return cleanMac.slice(0, 6) + serial + cleanMac.slice(6, 12) + ENCRYPTION_MAGIC_METHOD_2;
 
-    case EncryptionMethod.METHOD_3: {
-      // Complex mixing algorithm from pywemo
-      // Mix: mac_val = (mac[i] + mac[i+6] + serial[i]) for i in 0..5
-      // Then interleave with serial
-      const macVals: number[] = [];
-      for (let i = 0; i < 6; i++) {
-        const hexPair1 = cleanMac.slice(i * 2, i * 2 + 2);
-        const hexPair2 = cleanMac.slice(6 + i * 2, 6 + i * 2 + 2);
-        const serialChar = serial.charCodeAt(i) || 0;
-        macVals.push(Number.parseInt(hexPair1, 16) + Number.parseInt(hexPair2, 16) + serialChar);
-      }
-
-      // Build key string by interleaving
-      let result = "";
-      for (let i = 0; i < 6; i++) {
-        result += serial.charAt(i) || "";
-        result += String.fromCharCode((macVals[i] ?? 0) % 256);
-      }
-      result += serial.slice(6);
-
-      // Base64 encode
-      keyString = Buffer.from(result, "binary").toString("base64");
-      break;
-    }
+    case EncryptionMethod.METHOD_3:
+      // binaryOption=1 devices: mac[:3] + mac[9:12] + serial + extra + mac[6:9] + mac[3:6]
+      return (
+        cleanMac.slice(0, 3) +
+        cleanMac.slice(9, 12) +
+        serial +
+        ENCRYPTION_EXTRA_METHOD_3 +
+        cleanMac.slice(6, 9) +
+        cleanMac.slice(3, 6)
+      );
 
     default:
       throw new Error(`Unknown encryption method: ${method}`);
   }
-
-  // Hash to get exactly 16 bytes for AES-128
-  const hash = createHash("md5").update(keyString).digest();
-  return hash;
 }
 
 /**
- * Encrypts the WiFi password using AES-128-CBC.
+ * Encrypts the WiFi password using OpenSSL-compatible AES-128-CBC.
+ *
+ * This replicates OpenSSL's `enc -aes-128-cbc -md md5` behavior:
+ * 1. Derive key and IV from password using MD5 (OpenSSL EVP_BytesToKey)
+ * 2. Encrypt with AES-128-CBC
+ * 3. Output: "Salted__" + salt + encrypted_data (but we strip the prefix)
  *
  * @param password - Plain text WiFi password
  * @param mac - Device MAC address
  * @param serial - Device serial number
  * @param method - Encryption method
- * @param addLengths - Whether to prepend length bytes (required for some devices)
+ * @param addLengths - Whether to append length bytes (hex) to the encrypted password
  * @returns Base64-encoded encrypted password
  */
 export function encryptWifiPassword(
   password: string,
   mac: string,
   serial: string,
-  method: EncryptionMethod = EncryptionMethod.METHOD_3,
+  method: EncryptionMethod = EncryptionMethod.METHOD_2,
   addLengths = true
 ): string {
-  const key = generateKeydata(mac, serial, method);
-  const iv = randomBytes(16);
+  const keydata = generateKeydata(mac, serial, method);
 
-  // Prepare data - optionally add length bytes
-  let data: Buffer;
-  if (addLengths) {
-    // Format: [keyLength (1 byte)][ivLength (1 byte)][password]
-    // Both lengths are always 16 for AES-128
-    const passwordBuffer = Buffer.from(password, "utf-8");
-    data = Buffer.concat([Buffer.from([16, 16]), passwordBuffer]);
-  } else {
-    data = Buffer.from(password, "utf-8");
-  }
+  // pywemo uses:
+  // - salt = keydata[:8]
+  // - iv = keydata[:16]
+  // - password (passphrase for key derivation) = keydata
+  const salt = Buffer.from(keydata.slice(0, 8), "utf-8");
+  const iv = Buffer.from(keydata.slice(0, 16), "utf-8");
+
+  console.log("[Encrypt] Keydata:", keydata);
+  console.log("[Encrypt] Keydata length:", keydata.length);
+  console.log("[Encrypt] Salt (hex):", salt.toString("hex"));
+  console.log("[Encrypt] IV (hex):", iv.toString("hex"));
+
+  // Derive the AES key using OpenSSL's EVP_BytesToKey with MD5
+  // OpenSSL command: openssl enc -aes-128-cbc -md md5 -S <salt> -iv <iv> -pass pass:<keydata>
+  // EVP_BytesToKey: key = MD5(password + salt)
+  const key = createHash("md5")
+    .update(Buffer.concat([Buffer.from(keydata, "utf-8"), salt]))
+    .digest();
+
+  console.log("[Encrypt] Derived key (hex):", key.toString("hex"));
 
   // Encrypt with AES-128-CBC
   const cipher = createCipheriv("aes-128-cbc", key, iv);
   cipher.setAutoPadding(true); // PKCS7 padding
 
-  const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
+  const passwordBuffer = Buffer.from(password, "utf-8");
+  const encrypted = Buffer.concat([cipher.update(passwordBuffer), cipher.final()]);
 
-  // Output format: IV + encrypted data, base64 encoded
-  const result = Buffer.concat([iv, encrypted]);
-  return result.toString("base64");
+  console.log("[Encrypt] Encrypted (hex):", encrypted.toString("hex"));
+
+  // Base64 encode just the encrypted data (no Salted__ prefix)
+  let result = encrypted.toString("base64");
+
+  console.log("[Encrypt] Base64:", result);
+  console.log("[Encrypt] Base64 length:", result.length);
+
+  // Optionally add length bytes as hex
+  // Format: <encrypted_base64><encrypted_len_hex><original_len_hex>
+  if (addLengths) {
+    const encLen = result.length;
+    const origLen = password.length;
+    const encLenHex = encLen.toString(16).padStart(2, "0");
+    const origLenHex = origLen.toString(16).padStart(2, "0");
+    result = result + encLenHex + origLenHex;
+    console.log("[Encrypt] With lengths:", result);
+    console.log("[Encrypt] Encrypted length (dec):", encLen, "-> hex:", encLenHex);
+    console.log("[Encrypt] Original length (dec):", origLen, "-> hex:", origLenHex);
+  }
+
+  return result;
 }
 
 // ============================================
@@ -409,12 +434,15 @@ export async function sendWifiConnectCommand(
     console.log("[Setup] Password length:", password.length);
 
     // Encrypt the password
+    // Use METHOD_2 by default - this works for most devices including Insight (rtos-based)
+    // Method 2 is for devices with rtos=1 or new_algo=1
+    // Method 3 is for devices with binaryOption=1 (less common)
     const encryptedPassword = encryptWifiPassword(
       password,
       mac,
       serial,
-      EncryptionMethod.METHOD_3,
-      true
+      EncryptionMethod.METHOD_2,
+      true // Add length bytes for all methods
     );
 
     diagnostics.encryptedPassword = encryptedPassword;
@@ -422,7 +450,7 @@ export async function sendWifiConnectCommand(
     console.log("[Setup] ============================================");
     console.log("[Setup] Encryption Details");
     console.log("[Setup] ============================================");
-    console.log("[Setup] Method:", EncryptionMethod.METHOD_3);
+    console.log("[Setup] Method:", EncryptionMethod.METHOD_2, "(rtos/new_algo devices)");
     console.log("[Setup] Add lengths:", true);
     console.log("[Setup] Original password length:", password.length);
     console.log("[Setup] Encrypted password (base64):", encryptedPassword);

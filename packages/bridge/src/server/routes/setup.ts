@@ -210,7 +210,7 @@ setupRoutes.post("/diag/encrypt", async (c) => {
       return c.json({ error: "Missing password, mac, or serial" }, 400);
     }
 
-    const encMethod = method ?? EncryptionMethod.METHOD_3;
+    const encMethod = method ?? EncryptionMethod.METHOD_2;
     const withLengths = addLengths ?? true;
 
     console.log("[Setup API] Encrypting:", {
