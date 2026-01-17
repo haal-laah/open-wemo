@@ -989,6 +989,119 @@ export async function runAllTestsSync() {
   return results;
 }
 
+// ============================================
+// Device Info Display (CORS Bypass via Object Tag)
+// ============================================
+
+/**
+ * Creates an object tag that displays setup.xml content.
+ * The browser renders the XML visually but JS cannot read it due to CORS.
+ * User must manually copy the visible text and paste it for parsing.
+ *
+ * @returns {HTMLObjectElement} The configured object element
+ */
+export function createDeviceInfoObjectTag() {
+  const object = document.createElement("object");
+  object.type = "text/xml";
+  object.data = `${WEMO_SETUP_URL}/setup.xml`;
+
+  // Style for visibility and mobile-friendly text selection
+  // 20px margins on all sides so users can easily select text on mobile
+  object.style.cssText = `
+    display: block;
+    width: calc(100% - 40px);
+    height: 250px;
+    margin: 20px;
+    padding: 0;
+    border: 2px solid var(--color-border, #374151);
+    border-radius: 8px;
+    background-color: #ffffff;
+    overflow: auto;
+  `;
+
+  return object;
+}
+
+/**
+ * Parses pasted plain text to extract device Serial Number and MAC Address.
+ * When users copy text from the object tag, XML tags are stripped,
+ * leaving plain text that we parse with regex patterns.
+ *
+ * Expected patterns in setup.xml:
+ * - SerialNumber: alphanumeric, typically like "221424K1200BE7"
+ * - MacAddress: 12 hex characters, typically like "94103E3A6FB4"
+ *
+ * @param {string} pastedText - The plain text pasted by user
+ * @returns {{serial: string|null, mac: string|null, raw: object}} Extracted values
+ */
+export function parseDeviceInfoFromText(pastedText) {
+  const result = {
+    serial: null,
+    mac: null,
+    raw: {},
+  };
+
+  if (!pastedText || typeof pastedText !== "string") {
+    return result;
+  }
+
+  // Normalize whitespace
+  const text = pastedText.trim();
+
+  // Try to find SerialNumber - typically alphanumeric, 10-20 chars
+  // Look for patterns like "SerialNumber 221424K1200BE7" or just the serial itself
+  const serialPatterns = [
+    /SerialNumber\s*[:\s]*([A-Z0-9]{10,20})/i,
+    /Serial\s*[:\s]*([A-Z0-9]{10,20})/i,
+    // Standalone pattern: alphanumeric starting with digits, containing letters
+    /\b(\d{6}[A-Z]\d{4}[A-Z0-9]{2,5})\b/i,
+  ];
+
+  for (const pattern of serialPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      result.serial = match[1];
+      break;
+    }
+  }
+
+  // Try to find MacAddress - 12 hex characters (may have colons/dashes)
+  const macPatterns = [
+    /MacAddress\s*[:\s]*([0-9A-Fa-f]{12})/i,
+    /MacAddress\s*[:\s]*([0-9A-Fa-f]{2}[:\-]?){5}[0-9A-Fa-f]{2}/i,
+    /MAC\s*[:\s]*([0-9A-Fa-f]{12})/i,
+    // Standalone 12 hex chars
+    /\b([0-9A-Fa-f]{12})\b/,
+  ];
+
+  for (const pattern of macPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      // Remove any colons/dashes and uppercase
+      result.mac = match[1].replace(/[:\-]/g, "").toUpperCase();
+      break;
+    }
+  }
+
+  // Also try to extract other useful fields
+  const fieldPatterns = {
+    friendlyName: /friendlyName\s*[:\s]*([^\n]+)/i,
+    modelName: /modelName\s*[:\s]*([^\n]+)/i,
+    modelNumber: /modelNumber\s*[:\s]*([^\n]+)/i,
+    firmwareVersion: /firmwareVersion\s*[:\s]*([^\n]+)/i,
+    binaryState: /BinaryState\s*[:\s]*(\d+)/i,
+  };
+
+  for (const [field, pattern] of Object.entries(fieldPatterns)) {
+    const match = text.match(pattern);
+    if (match) {
+      result.raw[field] = match[1].trim();
+    }
+  }
+
+  return result;
+}
+
 /**
  * Formats test results as a string for copying to clipboard.
  *

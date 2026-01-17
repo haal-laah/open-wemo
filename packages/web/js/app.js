@@ -7,8 +7,10 @@ import {
   NetworkMode,
   TEST_NAMES,
   WEMO_SETUP_URL,
+  createDeviceInfoObjectTag,
   detectNetworkMode,
   formatTestResults,
+  parseDeviceInfoFromText,
   runAllTests,
 } from "./setup-mode.js";
 
@@ -25,6 +27,13 @@ const state = {
   networkMode: NetworkMode.NORMAL,
   testResults: [],
   testsRunning: false,
+  // Device setup state
+  deviceInfo: {
+    serial: null,
+    mac: null,
+    raw: {},
+    pastedText: "",
+  },
   settings: {
     refreshInterval: 30000,
     theme: "dark",
@@ -760,8 +769,8 @@ function renderOfflineBanner() {
  * Renders the setup mode UI for configuring new Wemo devices.
  */
 function renderSetupMode() {
-  const testResultsHtml = renderTestResults();
-  const summaryHtml = renderTestSummary();
+  const deviceInfoPanelHtml = renderDeviceInfoPanel();
+  const parsedInfoHtml = renderParsedDeviceInfo();
 
   return `
     <div class="setup-mode">
@@ -776,52 +785,29 @@ function renderSetupMode() {
         </div>
         <h1 class="setup-mode-title">Device Setup Mode</h1>
         <p class="setup-mode-subtitle">
-          Connected to Wemo device access point. Running connectivity tests to determine browser capabilities.
+          Connected to Wemo device access point. Follow the steps below to get the device information needed for setup.
         </p>
         <div class="setup-mode-target">${WEMO_SETUP_URL}</div>
       </div>
 
-      <div class="test-results">
-        <h2 class="test-results-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/>
-            <line x1="16" y1="17" x2="8" y2="17"/>
-            <line x1="10" y1="9" x2="8" y2="9"/>
-          </svg>
-          CORS Connectivity Tests
-        </h2>
-        <div class="test-results-list" id="test-results-list" aria-live="polite" aria-atomic="false">
-          ${testResultsHtml}
-        </div>
-        ${summaryHtml}
+      ${deviceInfoPanelHtml}
+
+      <div class="device-info-paste-section">
+        <label class="device-info-paste-label" for="device-info-paste">
+          Step 2: Paste the copied text here
+        </label>
+        <textarea 
+          id="device-info-paste" 
+          class="device-info-paste-area" 
+          placeholder="Select all the text shown above, copy it, then paste here..."
+          aria-describedby="paste-instructions"
+        >${escapeHtml(state.deviceInfo.pastedText)}</textarea>
+        <span id="paste-instructions" class="sr-only">
+          After copying the device information from the panel above, paste it here to extract the serial number and MAC address.
+        </span>
       </div>
 
-      <div class="test-actions">
-        <button class="btn btn-primary" id="run-tests-btn" ${state.testsRunning ? "disabled" : ""}>
-          ${state.testsRunning ? '<span class="spinner spinner-sm"></span> Running Tests...' : "Run Tests Again"}
-        </button>
-        <button class="btn" id="copy-results-btn" ${state.testResults.length === 0 ? "disabled" : ""}>
-          Copy Results
-        </button>
-      </div>
-
-      <div class="setup-mode-info">
-        <div class="setup-mode-info-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="16" x2="12" y2="12"/>
-            <line x1="12" y1="8" x2="12.01" y2="8"/>
-          </svg>
-          What do these tests mean?
-        </div>
-        <p class="setup-mode-info-text">
-          These tests check if your browser can communicate directly with the Wemo device.
-          Due to browser security (CORS), some requests may be blocked. The results help
-          determine what setup methods are available.
-        </p>
-      </div>
+      ${parsedInfoHtml}
 
       <div class="setup-mode-back">
         <button class="btn" id="back-to-normal-btn">
@@ -832,6 +818,123 @@ function renderSetupMode() {
           Back to Device List
         </button>
       </div>
+    </div>
+  `;
+}
+
+/**
+ * Renders the device info panel with object tag for setup.xml.
+ */
+function renderDeviceInfoPanel() {
+  return `
+    <div class="device-info-panel">
+      <h2 class="device-info-panel-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        Step 1: Copy Device Information
+      </h2>
+      <div class="device-info-instructions">
+        <p>The device information is displayed below. Due to browser security, we cannot read it directly.</p>
+        <ol>
+          <li><strong>Long-press</strong> (mobile) or <strong>triple-click</strong> (desktop) to select all text in the box below</li>
+          <li><strong>Copy</strong> the selected text</li>
+          <li><strong>Paste</strong> it into the text area in Step 2</li>
+        </ol>
+      </div>
+      <div class="device-info-object-container" id="device-info-object-container">
+        <span class="device-info-object-label">Device Info (setup.xml)</span>
+        <!-- Object tag will be inserted here by JS -->
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Renders the parsed device info display.
+ */
+function renderParsedDeviceInfo() {
+  const { serial, mac, raw } = state.deviceInfo;
+
+  // If nothing parsed yet
+  if (!serial && !mac && !state.deviceInfo.pastedText) {
+    return "";
+  }
+
+  // If text was pasted but nothing found
+  if (state.deviceInfo.pastedText && !serial && !mac) {
+    return `
+      <div class="device-info-parsed is-error">
+        <div class="device-info-parsed-title is-error">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="15" y1="9" x2="9" y2="15"/>
+            <line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+          Could not find device info
+        </div>
+        <p style="font-size: var(--font-size-sm); color: var(--color-text-muted); margin-top: var(--spacing-sm);">
+          Make sure you copied all the text from the device info panel above. 
+          The text should contain SerialNumber and MacAddress values.
+        </p>
+      </div>
+    `;
+  }
+
+  // Show parsed results
+  const friendlyName = raw.friendlyName || "Unknown";
+
+  return `
+    <div class="device-info-parsed is-success">
+      <div class="device-info-parsed-title is-success">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Device Information Found
+      </div>
+      ${
+        serial
+          ? `
+        <div class="device-info-parsed-row">
+          <span class="device-info-parsed-label">Serial Number</span>
+          <span class="device-info-parsed-value">${escapeHtml(serial)}</span>
+        </div>
+      `
+          : ""
+      }
+      ${
+        mac
+          ? `
+        <div class="device-info-parsed-row">
+          <span class="device-info-parsed-label">MAC Address</span>
+          <span class="device-info-parsed-value">${escapeHtml(mac)}</span>
+        </div>
+      `
+          : ""
+      }
+      ${
+        raw.friendlyName
+          ? `
+        <div class="device-info-parsed-row">
+          <span class="device-info-parsed-label">Device Name</span>
+          <span class="device-info-parsed-value">${escapeHtml(friendlyName)}</span>
+        </div>
+      `
+          : ""
+      }
+      ${
+        raw.modelName
+          ? `
+        <div class="device-info-parsed-row">
+          <span class="device-info-parsed-label">Model</span>
+          <span class="device-info-parsed-value">${escapeHtml(raw.modelName)}</span>
+        </div>
+      `
+          : ""
+      }
     </div>
   `;
 }
@@ -936,7 +1039,9 @@ function renderTestResults() {
 
 /**
  * Renders the test summary.
+ * @deprecated Kept for potential future CORS test UI restoration
  */
+// biome-ignore lint/correctness/noUnusedVariables: Preserved for potential debug UI
 function renderTestSummary() {
   if (state.testResults.length === 0) {
     return "";
@@ -963,20 +1068,75 @@ function renderTestSummary() {
  * Attaches event listeners for setup mode UI.
  */
 function attachSetupModeListeners() {
-  const runTestsBtn = document.getElementById("run-tests-btn");
-  const copyResultsBtn = document.getElementById("copy-results-btn");
   const backBtn = document.getElementById("back-to-normal-btn");
-
-  if (runTestsBtn) {
-    runTestsBtn.addEventListener("click", handleRunTests);
-  }
-
-  if (copyResultsBtn) {
-    copyResultsBtn.addEventListener("click", handleCopyResults);
-  }
+  const pasteArea = document.getElementById("device-info-paste");
+  const objectContainer = document.getElementById("device-info-object-container");
 
   if (backBtn) {
     backBtn.addEventListener("click", handleBackToNormal);
+  }
+
+  // Set up paste textarea listener
+  if (pasteArea) {
+    pasteArea.addEventListener("input", handleDeviceInfoPaste);
+    // Also handle paste event for immediate processing
+    pasteArea.addEventListener("paste", (e) => {
+      // Let the default paste happen, then process
+      setTimeout(() => handleDeviceInfoPaste(e), 0);
+    });
+  }
+
+  // Insert the object tag for displaying setup.xml
+  if (objectContainer) {
+    const objectTag = createDeviceInfoObjectTag();
+    objectContainer.appendChild(objectTag);
+
+    // Handle object load error
+    objectTag.onerror = () => {
+      console.warn("[SetupMode] Failed to load device info via object tag");
+      objectContainer.innerHTML = `
+        <div style="padding: 20px; text-align: center; color: var(--color-text-muted);">
+          <p>Unable to load device information.</p>
+          <p style="font-size: var(--font-size-sm);">Make sure you're connected to the Wemo device's WiFi network.</p>
+        </div>
+      `;
+    };
+  }
+}
+
+/**
+ * Handles paste/input in the device info textarea.
+ */
+function handleDeviceInfoPaste(event) {
+  const textarea = event.target;
+  const text = textarea.value;
+
+  // Update state
+  state.deviceInfo.pastedText = text;
+
+  // Parse the text
+  const parsed = parseDeviceInfoFromText(text);
+  state.deviceInfo.serial = parsed.serial;
+  state.deviceInfo.mac = parsed.mac;
+  state.deviceInfo.raw = parsed.raw;
+
+  // Update the parsed info display
+  const parsedContainer = document.querySelector(".device-info-parsed");
+  if (parsedContainer) {
+    parsedContainer.outerHTML = renderParsedDeviceInfo();
+  } else {
+    // Insert after paste section if not present
+    const pasteSection = document.querySelector(".device-info-paste-section");
+    if (pasteSection) {
+      pasteSection.insertAdjacentHTML("afterend", renderParsedDeviceInfo());
+    }
+  }
+
+  // Announce to screen readers
+  if (parsed.serial || parsed.mac) {
+    announceToScreenReader(
+      `Found device info: Serial ${parsed.serial || "not found"}, MAC ${parsed.mac || "not found"}`
+    );
   }
 }
 
@@ -1014,7 +1174,9 @@ async function handleRunTests() {
 
 /**
  * Copies test results to clipboard.
+ * @deprecated Kept for potential future CORS test UI restoration
  */
+// biome-ignore lint/correctness/noUnusedVariables: Preserved for potential debug UI
 async function handleCopyResults() {
   try {
     const text = formatTestResults(state.testResults);
@@ -1644,6 +1806,11 @@ function startAutoRefresh() {
   }
 
   autoRefreshTimer = setInterval(async () => {
+    // Skip refresh in setup mode - user is selecting text
+    if (state.networkMode === NetworkMode.SETUP_MODE) {
+      console.log("[App] Auto-refresh skipped (setup mode)");
+      return;
+    }
     // Only refresh if page is visible
     if (document.visibilityState === "visible" && !state.loading) {
       console.log("[App] Auto-refreshing devices...");
