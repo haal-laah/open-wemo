@@ -1750,13 +1750,30 @@ function hideQRModal() {
 }
 
 /**
- * Generates a QR code for the current URL.
+ * Generates a QR code for the server's LAN URL.
+ * Fetches the actual LAN IP from the server to ensure the QR code
+ * works when accessed via localhost.
  */
-function generateQRCode() {
+async function generateQRCode() {
   if (!$qrCodeContainer || !$qrModalUrl) return;
 
-  // Get the current URL (this will be the bridge URL)
-  const url = window.location.origin;
+  // Show loading state
+  $qrCodeContainer.innerHTML = '<div class="qr-code-loading">Loading...</div>';
+
+  // Get the LAN URL from the server (handles localhost -> LAN IP conversion)
+  let url = window.location.origin; // fallback
+  try {
+    const response = await fetch("/api/info");
+    if (response.ok) {
+      const info = await response.json();
+      if (info.url) {
+        url = info.url;
+      }
+    }
+  } catch (error) {
+    console.warn("[App] Could not fetch server info, using current origin:", error);
+  }
+
   $qrModalUrl.textContent = url;
 
   // Clear previous QR code

@@ -10,7 +10,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { getSavedAutostartPreference, setAutostart } from "../tray/autostart";
-import { generateQRWindowHtml } from "../tray/qr-window";
+import { generateQRWindowHtml, getPreferredIp, getServerUrl } from "../tray/qr-window";
 import { createSetupRoute } from "../tray/setup-window";
 import {
   generateWelcomeHtml,
@@ -279,6 +279,17 @@ export function createApp(config: ServerConfig = {}): Hono {
     });
   });
 
+  // Server info endpoint (returns LAN IP for QR code generation)
+  app.get("/api/info", (c) => {
+    const ip = getPreferredIp();
+    const port = DEFAULT_CONFIG.port;
+    return c.json({
+      ip,
+      port,
+      url: ip ? getServerUrl(port, ip) : null,
+    });
+  });
+
   // API info endpoint
   app.get("/api", (c) => {
     return c.json({
@@ -286,6 +297,7 @@ export function createApp(config: ServerConfig = {}): Hono {
       version: "0.1.0",
       endpoints: [
         "GET /api/health",
+        "GET /api/info",
         "GET /api/discover",
         "GET /api/discover/:host",
         "GET /api/devices",
