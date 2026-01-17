@@ -17,6 +17,9 @@ Thank you for your interest in contributing to Open Wemo! This document provides
 git clone https://github.com/haal-laah/open-wemo.git
 cd open-wemo
 
+# Switch to develop branch
+git checkout develop
+
 # Install dependencies
 bun install
 
@@ -89,10 +92,12 @@ Use present tense ("Add feature" not "Added feature").
 
 ### Pull Requests
 
-1. Create a feature branch from `main`
+1. Create a feature branch from `develop` (not `main`)
 2. Make your changes
 3. Run tests and linting
-4. Submit a PR with a clear description
+4. Submit a PR **targeting the `develop` branch**
+
+> **Note:** The `main` branch is reserved for stable releases. All pull requests should target `develop`.
 
 ### PR Checklist
 
@@ -148,4 +153,4 @@ Open an issue or start a discussion. We're happy to help!
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE).
