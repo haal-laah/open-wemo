@@ -341,7 +341,7 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
     .form-select {
       width: 100%;
       padding: 12px 16px;
-      background: rgba(0, 0, 0, 0.3);
+      background: #1a1a2e;
       border: 1px solid #374151;
       border-radius: 8px;
       color: #fff;
@@ -356,6 +356,130 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
     .form-select:focus {
       outline: none;
       border-color: #4ade80;
+    }
+    
+    .form-select option {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 12px;
+    }
+    
+    .form-select option:hover,
+    .form-select option:checked {
+      background: #2d3748;
+    }
+    
+    /* Custom Dropdown Styles */
+    .custom-dropdown {
+      position: relative;
+      width: 100%;
+    }
+    
+    .custom-dropdown-btn {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid #374151;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-align: left;
+      transition: all 0.2s;
+    }
+    
+    .custom-dropdown-btn:hover {
+      border-color: #4b5563;
+    }
+    
+    .custom-dropdown-btn:focus {
+      outline: none;
+      border-color: #4ade80;
+    }
+    
+    .custom-dropdown-btn svg {
+      flex-shrink: 0;
+      color: #9ca3af;
+      transition: transform 0.2s;
+    }
+    
+    .custom-dropdown.open .custom-dropdown-btn svg {
+      transform: rotate(180deg);
+    }
+    
+    .custom-dropdown-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin-top: 4px;
+      background: #1e293b;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      max-height: 280px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+    
+    .custom-dropdown.open .custom-dropdown-list {
+      display: block;
+    }
+    
+    .custom-dropdown-item {
+      padding: 12px 16px;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.15s;
+      border-bottom: 1px solid rgba(55, 65, 81, 0.5);
+    }
+    
+    .custom-dropdown-item:last-child {
+      border-bottom: none;
+    }
+    
+    .custom-dropdown-item:hover {
+      background: rgba(74, 222, 128, 0.1);
+    }
+    
+    .custom-dropdown-item.selected {
+      background: rgba(74, 222, 128, 0.2);
+    }
+    
+    .custom-dropdown-item-ssid {
+      font-weight: 500;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-right: 12px;
+    }
+    
+    .custom-dropdown-item-signal {
+      font-size: 12px;
+      color: #4ade80;
+      font-family: monospace;
+      flex-shrink: 0;
+    }
+    
+    .custom-dropdown-item-details {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    
+    .custom-dropdown-empty {
+      padding: 16px;
+      color: #64748b;
+      text-align: center;
+      font-size: 13px;
     }
     
     .form-hint {
@@ -850,9 +974,19 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
         <form id="wifi-form">
           <div class="form-group">
             <label class="form-label" for="ssid-select">WiFi Network</label>
-            <select id="ssid-select" class="form-select" style="display: none;">
-              <option value="">Select a network...</option>
-            </select>
+            <!-- Custom dropdown for better dark theme support -->
+            <div id="ssid-dropdown" class="custom-dropdown" style="display: none;">
+              <button type="button" id="ssid-dropdown-btn" class="custom-dropdown-btn">
+                <span id="ssid-dropdown-text">Select a network...</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M6 9l6 6 6-6"/>
+                </svg>
+              </button>
+              <div id="ssid-dropdown-list" class="custom-dropdown-list">
+                <!-- Options populated by JS -->
+              </div>
+            </div>
+            <input type="hidden" id="ssid-select" value="">
             <input type="text" id="ssid" class="form-input" placeholder="Enter your WiFi network name" autocomplete="off" style="display: none;">
             <div id="ssid-toggle-row" style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
               <button type="button" id="ssid-toggle-manual" class="btn-link" style="font-size: 12px; color: #60a5fa; background: none; border: none; cursor: pointer; padding: 0;">
@@ -1153,14 +1287,15 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
     async function fetchNetworks() {
       const loadingEl = document.getElementById('networks-loading');
       const errorEl = document.getElementById('networks-error');
-      const selectEl = document.getElementById('ssid-select');
+      const dropdownEl = document.getElementById('ssid-dropdown');
       const inputEl = document.getElementById('ssid');
       const refreshBtn = document.getElementById('ssid-refresh');
       
-      // Show loading, hide error
+      // Show loading, hide error and inputs
       loadingEl.classList.remove('hidden');
       errorEl.classList.add('hidden');
-      selectEl.style.display = 'none';
+      dropdownEl.style.display = 'none';
+      dropdownEl.classList.remove('open');
       inputEl.style.display = 'none';
       
       try {
@@ -1171,27 +1306,40 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
           state.networks = data.networks;
           state.manualSsidMode = false;
           
-          // Populate the dropdown
-          selectEl.innerHTML = '<option value="">Select a network...</option>';
+          // Populate the custom dropdown
+          const dropdownEl = document.getElementById('ssid-dropdown');
+          const listEl = document.getElementById('ssid-dropdown-list');
+          
+          listEl.innerHTML = '';
           for (const network of data.networks) {
-            const option = document.createElement('option');
-            option.value = network.ssid;
-            option.dataset.channel = network.channel;
-            option.dataset.auth = network.auth;
-            option.dataset.encrypt = network.encrypt;
-            option.dataset.signal = network.signalStrength;
+            const item = document.createElement('div');
+            item.className = 'custom-dropdown-item';
+            item.dataset.ssid = network.ssid;
+            item.dataset.channel = network.channel;
+            item.dataset.auth = network.auth;
+            item.dataset.encrypt = network.encrypt;
+            item.dataset.signal = network.signalStrength;
             
-            // Format: SSID (signal strength indicator)
             const signalBars = getSignalBars(network.signalStrength);
-            option.textContent = network.ssid + ' ' + signalBars;
-            selectEl.appendChild(option);
+            const signalDesc = getSignalDescription(network.signalStrength);
+            
+            item.innerHTML = 
+              '<div style="flex: 1; min-width: 0;">' +
+                '<div class="custom-dropdown-item-ssid">' + escapeHtml(network.ssid) + '</div>' +
+                '<div class="custom-dropdown-item-details">Ch ' + network.channel + ' • ' + network.auth + '</div>' +
+              '</div>' +
+              '<div class="custom-dropdown-item-signal">' + signalBars + '</div>';
+            
+            item.addEventListener('click', () => selectNetwork(network));
+            listEl.appendChild(item);
           }
           
           // Show dropdown, hide input
-          selectEl.style.display = 'block';
+          dropdownEl.style.display = 'block';
           inputEl.style.display = 'none';
           refreshBtn.style.display = 'inline';
           document.getElementById('ssid-toggle-manual').textContent = 'Enter manually instead';
+          document.getElementById('ssid-dropdown-text').textContent = 'Select a network...';
           
           console.log('[Setup] Found ' + data.networks.length + ' networks');
         } else {
@@ -1205,7 +1353,7 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
             data.error || 'No networks found. Enter your network details manually below.';
           
           // Show input, hide dropdown
-          selectEl.style.display = 'none';
+          document.getElementById('ssid-dropdown').style.display = 'none';
           inputEl.style.display = 'block';
           refreshBtn.style.display = 'inline';
           document.getElementById('ssid-toggle-manual').textContent = 'Try scanning again';
@@ -1219,7 +1367,7 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
         document.getElementById('networks-error-msg').textContent = 
           'Could not scan for networks. Enter your network details manually below.';
         
-        selectEl.style.display = 'none';
+        document.getElementById('ssid-dropdown').style.display = 'none';
         inputEl.style.display = 'block';
         refreshBtn.style.display = 'inline';
         document.getElementById('ssid-toggle-manual').textContent = 'Try scanning again';
@@ -1245,44 +1393,66 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       return 'Weak';
     }
     
-    // Handle network selection from dropdown
-    document.getElementById('ssid-select').addEventListener('change', (e) => {
-      const selectEl = e.target;
-      const selectedOption = selectEl.options[selectEl.selectedIndex];
-      const networkInfoEl = document.getElementById('network-info');
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    // Handle network selection from custom dropdown
+    function selectNetwork(network) {
+      state.selectedNetwork = network;
       
-      if (selectedOption && selectedOption.value) {
-        // Find the network in state
-        const network = state.networks.find(n => n.ssid === selectedOption.value);
-        state.selectedNetwork = network;
-        
-        if (network) {
-          // Update hidden fields
-          document.getElementById('security').value = network.auth + '/' + network.encrypt;
-          document.getElementById('channel').value = network.channel;
-          
-          // Show network info
-          document.getElementById('network-security-display').textContent = 
-            formatSecurity(network.auth, network.encrypt);
-          document.getElementById('network-channel-display').textContent = network.channel;
-          document.getElementById('network-signal-display').textContent = 
-            getSignalDescription(network.signalStrength) + ' (' + network.signalStrength + ' dBm)';
-          
-          networkInfoEl.classList.remove('hidden');
-          
-          // Toggle password field based on security
-          const passwordGroup = document.getElementById('password').closest('.form-group');
-          if (network.auth === 'OPEN') {
-            passwordGroup.style.display = 'none';
-            document.getElementById('password').removeAttribute('required');
-          } else {
-            passwordGroup.style.display = 'block';
-            document.getElementById('password').setAttribute('required', '');
-          }
-        }
+      // Update hidden field and dropdown text
+      document.getElementById('ssid-select').value = network.ssid;
+      document.getElementById('ssid-dropdown-text').textContent = network.ssid;
+      
+      // Close dropdown
+      document.getElementById('ssid-dropdown').classList.remove('open');
+      
+      // Update hidden fields
+      document.getElementById('security').value = network.auth + '/' + network.encrypt;
+      document.getElementById('channel').value = network.channel;
+      
+      // Show network info
+      const networkInfoEl = document.getElementById('network-info');
+      document.getElementById('network-security-display').textContent = 
+        formatSecurity(network.auth, network.encrypt);
+      document.getElementById('network-channel-display').textContent = network.channel;
+      document.getElementById('network-signal-display').textContent = 
+        getSignalDescription(network.signalStrength) + ' (' + network.signalStrength + ' dBm)';
+      
+      networkInfoEl.classList.remove('hidden');
+      
+      // Mark selected item
+      document.querySelectorAll('.custom-dropdown-item').forEach(item => {
+        item.classList.toggle('selected', item.dataset.ssid === network.ssid);
+      });
+      
+      // Toggle password field based on security
+      const passwordGroup = document.getElementById('password').closest('.form-group');
+      if (network.auth === 'OPEN') {
+        passwordGroup.style.display = 'none';
+        document.getElementById('password').removeAttribute('required');
       } else {
-        state.selectedNetwork = null;
-        networkInfoEl.classList.add('hidden');
+        passwordGroup.style.display = 'block';
+        document.getElementById('password').setAttribute('required', '');
+      }
+    }
+    
+    // Toggle custom dropdown open/close
+    document.getElementById('ssid-dropdown-btn').addEventListener('click', (e) => {
+      e.preventDefault();
+      const dropdown = document.getElementById('ssid-dropdown');
+      dropdown.classList.toggle('open');
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      const dropdown = document.getElementById('ssid-dropdown');
+      if (!dropdown.contains(e.target)) {
+        dropdown.classList.remove('open');
       }
     });
     
@@ -1296,7 +1466,7 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
     
     // Toggle between dropdown and manual input
     document.getElementById('ssid-toggle-manual').addEventListener('click', () => {
-      const selectEl = document.getElementById('ssid-select');
+      const dropdownEl = document.getElementById('ssid-dropdown');
       const inputEl = document.getElementById('ssid');
       const networkInfoEl = document.getElementById('network-info');
       const toggleBtn = document.getElementById('ssid-toggle-manual');
@@ -1309,7 +1479,8 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
         state.manualSsidMode = true;
         state.selectedNetwork = null;
         
-        selectEl.style.display = 'none';
+        dropdownEl.style.display = 'none';
+        dropdownEl.classList.remove('open');
         inputEl.style.display = 'block';
         networkInfoEl.classList.add('hidden');
         toggleBtn.textContent = 'Select from list';
@@ -1317,6 +1488,7 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
         // Reset to default security (WPA2)
         document.getElementById('security').value = 'WPA2PSK/AES';
         document.getElementById('channel').value = '0';
+        document.getElementById('ssid-select').value = '';
         
         // Show password field
         const passwordGroup = document.getElementById('password').closest('.form-group');
@@ -1457,6 +1629,9 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       // Reset UI elements
       document.getElementById('network-info').classList.add('hidden');
       document.getElementById('networks-error').classList.add('hidden');
+      document.getElementById('ssid-dropdown').classList.remove('open');
+      document.getElementById('ssid-dropdown-text').textContent = 'Select a network...';
+      document.getElementById('ssid-dropdown-list').innerHTML = '';
       
       goToStep(1);
     });

@@ -793,9 +793,19 @@ export async function fetchApList(): Promise<ApListResult> {
       };
     }
 
-    // Split by newline to get individual networks
-    // Each line is: SSID|Channel|Signal|Security
-    const lines = apListContent.split("\n").filter((line) => line.trim());
+    // Split by newline or other common delimiters to get individual networks
+    // Each entry is: SSID|Channel|Signal|Security
+    // Devices may use \n, &#10;, or the response might have all entries on one line
+    // Also handle XML-encoded newlines
+    const normalizedContent = apListContent
+      .replace(/&#10;/g, "\n")
+      .replace(/&#13;/g, "")
+      .replace(/\r/g, "");
+
+    const lines = normalizedContent.split("\n").filter((line) => line.trim());
+
+    console.log("[Setup] AP List raw content:", apListContent.substring(0, 500));
+    console.log("[Setup] AP List lines found:", lines.length);
 
     for (const line of lines) {
       const parts = line.split("|");
