@@ -171,6 +171,16 @@ function isRunningStandalone() {
 }
 
 /**
+ * Detects if the device is running iOS (iPhone, iPad, iPod).
+ */
+function isIOSDevice() {
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
+/**
  * Checks if the install banner was recently dismissed.
  */
 function wasInstallBannerDismissed() {
