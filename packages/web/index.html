@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" href="icons/icon.svg">
   
   <!-- Styles -->
-  <link rel="stylesheet" href="css/style.css?v=8">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <a href="#app" class="skip-link">Skip to main content</a>
@@ -328,6 +328,10 @@
             <span class="settings-about-value">0.1.0</span>
           </div>
           <div class="settings-about-row">
+            <span class="settings-about-label">App Build</span>
+            <span class="settings-about-value" id="app-build">23</span>
+          </div>
+          <div class="settings-about-row">
             <span class="settings-about-label">Bridge Status</span>
             <span class="settings-about-value" id="bridge-status">
               <span class="status-dot status-dot-connected"></span>
@@ -349,6 +353,84 @@
     </div>
   </div>
   
+  <!-- Setup New Device Instructions Modal -->
+  <div id="setup-instructions-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="setup-instructions-title">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content ios-install-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="setup-instructions-title">Set Up New Device</h2>
+        <button class="btn btn-icon modal-close" id="setup-instructions-close" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6L6 18"/>
+            <path d="M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="ios-install-intro">Device setup must be done from a computer running the Open Wemo bridge.</p>
+        <p class="ios-install-intro" style="font-size: var(--font-size-sm); color: var(--color-text-muted); margin-top: var(--spacing-sm);">
+          Due to browser security restrictions, your phone cannot communicate directly with WeMo devices during setup.
+        </p>
+        
+        <ol class="ios-install-steps">
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Go to your computer</div>
+              <div class="ios-install-step-text">The computer where Open Wemo bridge is installed</div>
+            </div>
+          </li>
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Find the Open Wemo icon</div>
+              <div class="ios-install-step-text">Look in your system tray (Windows) or menu bar (macOS)</div>
+            </div>
+          </li>
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                <line x1="12" y1="20" x2="12.01" y2="20"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Select "Setup New Device"</div>
+              <div class="ios-install-step-text">Right-click the icon and choose <strong>"Setup New Device"</strong> from the menu</div>
+            </div>
+          </li>
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Follow the on-screen instructions</div>
+              <div class="ios-install-step-text">The setup wizard will guide you through connecting your WeMo device to WiFi</div>
+            </div>
+          </li>
+        </ol>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="setup-instructions-cancel">Got It</button>
+      </div>
+    </div>
+  </div>
+
   <!-- QR Code Share Modal -->
   <div id="qr-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="qr-modal-title">
     <div class="modal-backdrop"></div>
@@ -379,7 +461,10 @@
   <!-- QR Code Library (lightweight) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   
+  <!-- CryptoJS for OpenSSL-compatible AES encryption (local copy for offline use) -->
+  <script src="js/vendor/crypto-js.min.js"></script>
+  
   <!-- Scripts -->
-  <script type="module" src="js/app.js?v=8"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

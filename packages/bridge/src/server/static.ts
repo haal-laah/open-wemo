@@ -240,8 +240,13 @@ export function getStaticFile(path: string): { content: Uint8Array; mimeType: st
 
 /**
  * Creates a Hono middleware for serving static files.
+ * In development mode, files are read fresh from disk on each request.
+ * In production, files are served from the pre-loaded cache.
  */
 export function staticFileMiddleware() {
+  const isDev = !isCompiledBinary();
+  const webDir = isDev ? getWebDir() : "";
+
   return async (c: { req: { path: string } }, next: () => Promise<void>) => {
     const path = c.req.path;
 
@@ -255,18 +260,89 @@ export function staticFileMiddleware() {
       return next();
     }
 
-    const file = getStaticFile(path);
-    if (file) {
-      return new Response(file.content, {
-        headers: {
-          "Content-Type": file.mimeType,
-          "Cache-Control": "public, max-age=3600",
-        },
-      });
+    // In development mode, read files fresh from disk (no caching)
+    if (isDev) {
+      const file = await getStaticFileFresh(webDir, path);
+      if (file) {
+        return new Response(file.content, {
+          headers: {
+            "Content-Type": file.mimeType,
+            // No caching in development
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
+        });
+      }
+    } else {
+      // Production: serve from pre-loaded cache
+      const file = getStaticFile(path);
+      if (file) {
+        return new Response(file.content, {
+          headers: {
+            "Content-Type": file.mimeType,
+            "Cache-Control": "public, max-age=3600",
+          },
+        });
+      }
     }
 
     return next();
   };
+}
+
+/**
+ * Reads a static file fresh from disk (for development mode).
+ */
+async function getStaticFileFresh(
+  webDir: string,
+  path: string
+): Promise<{ content: Uint8Array; mimeType: string } | null> {
+  // Normalize path
+  let normalizedPath = path;
+  if (!normalizedPath.startsWith("/")) {
+    normalizedPath = `/${normalizedPath}`;
+  }
+
+  // Handle root path
+  if (normalizedPath === "/") {
+    normalizedPath = "/index.html";
+  }
+
+  // Construct full file path
+  const fullPath = join(webDir, normalizedPath);
+
+  // Security: prevent directory traversal
+  if (!fullPath.startsWith(webDir)) {
+    return null;
+  }
+
+  try {
+    if (!existsSync(fullPath) || !statSync(fullPath).isFile()) {
+      // For SPA routing: if not found and not a file extension, return index.html
+      if (!normalizedPath.startsWith("/api") && !normalizedPath.includes(".")) {
+        const indexPath = join(webDir, "index.html");
+        if (existsSync(indexPath)) {
+          const file = Bun.file(indexPath);
+          const arrayBuffer = await file.arrayBuffer();
+          return {
+            content: new Uint8Array(arrayBuffer),
+            mimeType: "text/html; charset=utf-8",
+          };
+        }
+      }
+      return null;
+    }
+
+    const file = Bun.file(fullPath);
+    const arrayBuffer = await file.arrayBuffer();
+    return {
+      content: new Uint8Array(arrayBuffer),
+      mimeType: getMimeType(fullPath),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**

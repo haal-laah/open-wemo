@@ -14,6 +14,7 @@ import type { MenuClickHandler, MenuItem } from "./index";
 export const MenuItemIds = {
   OPEN_BROWSER: "open-browser",
   SHOW_QR: "show-qr",
+  SETUP_DEVICE: "setup-device",
   DISCOVER: "discover",
   START_ON_LOGIN: "start-on-login",
   QUIT: "quit",
@@ -25,6 +26,7 @@ export const MenuItemIds = {
 export interface MenuHandlers {
   onOpenBrowser?: () => void;
   onShowQR?: () => void;
+  onSetupDevice?: () => void;
   onDiscover?: () => Promise<void>;
   onStartOnLoginToggle?: (enabled: boolean) => void;
   onQuit?: () => void;
@@ -44,6 +46,11 @@ export function createMenuItems(startOnLogin = false): MenuItem[] {
       id: MenuItemIds.SHOW_QR,
       title: "Show QR Code",
       tooltip: "Display QR code for phone setup",
+    },
+    {
+      id: MenuItemIds.SETUP_DEVICE,
+      title: "Setup New Device",
+      tooltip: "Configure a new WeMo device's WiFi",
     },
     {
       id: MenuItemIds.DISCOVER,
@@ -100,6 +107,10 @@ export function createMenuClickHandler(
 
       case MenuItemIds.SHOW_QR:
         handlers.onShowQR?.();
+        break;
+
+      case MenuItemIds.SETUP_DEVICE:
+        handlers.onSetupDevice?.();
         break;
 
       case MenuItemIds.DISCOVER:

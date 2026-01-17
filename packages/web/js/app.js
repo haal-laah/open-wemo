@@ -3,6 +3,10 @@
  */
 
 import { api } from "./api.js";
+// Note: PWA-based setup mode has been disabled due to browser CORS limitations.
+// Device setup must now be done from the bridge (tray menu → "Setup New Device").
+// The following imports are kept for network detection only.
+import { NetworkMode, detectNetworkMode } from "./setup-mode.js";
 
 // ============================================
 // State Management
@@ -14,6 +18,9 @@ const state = {
   error: null,
   isOffline: false,
   lastUpdated: null,
+  networkMode: NetworkMode.NORMAL,
+  // Note: testResults, testsRunning, deviceInfo, and wifiSetup state removed
+  // PWA-based setup mode has been deprecated due to CORS limitations
   settings: {
     refreshInterval: 30000,
     theme: "dark",
@@ -65,6 +72,9 @@ const $qrModal = document.getElementById("qr-modal");
 const $qrModalClose = document.getElementById("qr-modal-close");
 const $qrCodeContainer = document.getElementById("qr-code-container");
 const $qrModalUrl = document.getElementById("qr-modal-url");
+const $setupInstructionsModal = document.getElementById("setup-instructions-modal");
+const $setupInstructionsClose = document.getElementById("setup-instructions-close");
+const $setupInstructionsCancel = document.getElementById("setup-instructions-cancel");
 
 // ============================================
 // Service Worker Registration
@@ -94,13 +104,6 @@ async function registerServiceWorker() {
 // ============================================
 // PWA Install Detection & Handling
 // ============================================
-
-/**
- * Detects if the current device is iOS.
- */
-function isIOSDevice() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-}
 
 /**
  * Checks if the app was previously installed (persisted in localStorage).
@@ -165,6 +168,16 @@ function isRunningStandalone() {
   });
 
   return isStandalone;
+}
+
+/**
+ * Detects if the device is running iOS (iPhone, iPad, iPod).
+ */
+function isIOSDevice() {
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
 }
 
 /**
@@ -485,6 +498,9 @@ function renderDevices() {
   // Hide initial loading
   $initialLoading.classList.add("hidden");
 
+  // Note: Setup mode rendering removed - PWA setup doesn't work due to CORS
+  // If user is on Wemo AP, they'll see the bridge-required modal via handleDiscover()
+
   // If offline with no cached data, show offline state
   if (state.isOffline && state.devices.length === 0) {
     $app.innerHTML = renderOfflineState();
@@ -604,7 +620,7 @@ function getDeviceIcon(_deviceType) {
 }
 
 /**
- * Renders the empty state.
+ * Renders the empty state with first-run setup options.
  */
 function renderEmptyState() {
   return `
@@ -615,13 +631,33 @@ function renderEmptyState() {
           <path d="M18.4 6.6a9 9 0 1 1-12.77.04"/>
         </svg>
       </div>
-      <h2 class="empty-state-title">No devices found</h2>
+      <h2 class="empty-state-title">Welcome to Open Wemo</h2>
       <p class="empty-state-text">
-        Make sure your WeMo devices are connected to your network and tap refresh to discover them.
+        Get started by adding your WeMo devices.
       </p>
-      <button class="btn btn-primary" id="discover-btn">
-        Discover Devices
-      </button>
+      <div class="empty-state-actions">
+        <button class="btn btn-primary" id="discover-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="16"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          Find Devices on Network
+        </button>
+        <button class="btn" id="setup-new-device-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+            <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+            <line x1="12" y1="20" x2="12.01" y2="20"/>
+          </svg>
+          Set Up New Device
+        </button>
+      </div>
+      <p class="empty-state-hint">
+        <strong>Find Devices</strong> - For WeMo devices already on your WiFi<br>
+        <strong>Set Up New Device</strong> - For brand new or factory-reset devices
+      </p>
     </div>
   `;
 }
@@ -711,6 +747,30 @@ function renderOfflineBanner() {
 }
 
 // ============================================
+// Setup Mode (DEPRECATED)
+// ============================================
+// Note: PWA-based device setup has been disabled due to browser CORS limitations.
+// The browser cannot send the required SOAPACTION header needed for Wemo SOAP commands.
+// Device setup must now be done from the bridge application:
+//   1. Right-click the tray icon
+//   2. Select "Setup New Device"
+//   3. Follow the on-screen wizard
+//
+// The functions below are kept minimal - only enterSetupMode is used to show
+// the bridge-required message when a user accidentally connects to a Wemo AP.
+
+/**
+ * Shows the bridge-required message when user is on Wemo AP.
+ * Previously this entered a PWA-based setup mode, but browser CORS restrictions
+ * prevent proper SOAP communication, so setup must be done from the bridge.
+ * @deprecated PWA setup mode removed - use bridge "Setup New Device" menu instead
+ */
+function enterSetupMode() {
+  // Show the bridge-required instructions modal instead of entering setup mode
+  showSetupInstructionsModal();
+}
+
+// ============================================
 // Power Stats (Insight Devices)
 // ============================================
 
@@ -797,6 +857,12 @@ function attachDeviceListeners() {
   const discoverBtn = document.getElementById("discover-btn");
   if (discoverBtn) {
     discoverBtn.addEventListener("click", handleDiscover);
+  }
+
+  // Setup new device button (for devices in AP mode)
+  const setupNewDeviceBtn = document.getElementById("setup-new-device-btn");
+  if (setupNewDeviceBtn) {
+    setupNewDeviceBtn.addEventListener("click", handleSetupNewDevice);
   }
 
   // Retry button (error state)
@@ -1098,10 +1164,74 @@ async function handleAddSelected() {
 }
 
 /**
- * Handles device discovery (from empty state button).
+ * Handles device discovery (from empty state button or Add Device button).
+ * First checks if we're connected to a Wemo AP for setup mode.
  */
 async function handleDiscover() {
+  // Check if we might be on a Wemo AP
+  const networkMode = await detectNetworkMode();
+
+  if (networkMode === NetworkMode.SETUP_MODE) {
+    // User is connected to Wemo AP - show bridge-required message
+    // PWA cannot do setup due to browser CORS restrictions
+    showToast("Connected to WeMo AP - setup must be done from the bridge", "info");
+    showSetupInstructionsModal();
+    return;
+  }
+
+  // Normal discovery flow
   openDiscoveryModal();
+}
+
+// ============================================
+// Setup Instructions Modal
+// ============================================
+
+/**
+ * Handles "Set Up New Device" button click.
+ * Shows instructions that device setup must be done from the bridge.
+ * Browser CORS restrictions prevent PWA from doing direct setup.
+ */
+function handleSetupNewDevice() {
+  showSetupInstructionsModal();
+}
+
+/**
+ * Shows the setup instructions modal.
+ */
+function showSetupInstructionsModal() {
+  if ($setupInstructionsModal) {
+    $setupInstructionsModal.classList.remove("hidden");
+    trapFocus($setupInstructionsModal);
+    announceToScreenReader("Setup instructions opened");
+  }
+}
+
+/**
+ * Hides the setup instructions modal.
+ */
+function hideSetupInstructionsModal() {
+  if ($setupInstructionsModal) {
+    $setupInstructionsModal.classList.add("hidden");
+  }
+}
+
+/**
+ * Sets up setup instructions modal event listeners.
+ * Now just shows informational message about using bridge for setup.
+ */
+function setupSetupInstructionsListeners() {
+  if ($setupInstructionsClose) {
+    $setupInstructionsClose.addEventListener("click", hideSetupInstructionsModal);
+  }
+  if ($setupInstructionsCancel) {
+    // "Got It" button now dismisses the modal
+    $setupInstructionsCancel.addEventListener("click", hideSetupInstructionsModal);
+  }
+  // Close on backdrop click
+  $setupInstructionsModal
+    ?.querySelector(".modal-backdrop")
+    ?.addEventListener("click", hideSetupInstructionsModal);
 }
 
 /**
@@ -1138,6 +1268,7 @@ async function loadDevices() {
     state.devices = result.devices;
     state.error = null;
     state.isOffline = false;
+    state.networkMode = NetworkMode.NORMAL;
     state.lastUpdated = Date.now();
 
     // Cache devices to localStorage
@@ -1146,6 +1277,20 @@ async function loadDevices() {
     console.error("[App] Failed to load devices:", error);
     state.error = error;
     state.isOffline = true;
+
+    // Detect network mode - are we on Wemo AP?
+    const networkMode = await detectNetworkMode();
+    state.networkMode = networkMode;
+
+    if (networkMode === NetworkMode.SETUP_MODE) {
+      // User is on Wemo AP - show bridge-required message
+      // PWA cannot do setup due to browser CORS restrictions
+      console.log("[App] Detected Wemo AP - showing bridge-required message");
+      state.loading = false;
+      renderDevices();
+      showSetupInstructionsModal();
+      return;
+    }
 
     // Try to load from cache
     const cached = loadCachedDevices();
@@ -1194,6 +1339,11 @@ function startAutoRefresh() {
   }
 
   autoRefreshTimer = setInterval(async () => {
+    // Skip refresh in setup mode - user is selecting text
+    if (state.networkMode === NetworkMode.SETUP_MODE) {
+      console.log("[App] Auto-refresh skipped (setup mode)");
+      return;
+    }
     // Only refresh if page is visible
     if (document.visibilityState === "visible" && !state.loading) {
       console.log("[App] Auto-refreshing devices...");
@@ -1508,6 +1658,9 @@ function setupEscapeKeyHandler() {
       if ($qrModal && !$qrModal.classList.contains("hidden")) {
         hideQRModal();
       }
+      if ($setupInstructionsModal && !$setupInstructionsModal.classList.contains("hidden")) {
+        hideSetupInstructionsModal();
+      }
     }
   });
 }
@@ -1662,6 +1815,9 @@ async function init() {
 
   // Set up settings listeners
   setupSettingsListeners();
+
+  // Set up setup instructions modal listeners
+  setupSetupInstructionsListeners();
 
   // Set up accessibility handlers
   setupEscapeKeyHandler();

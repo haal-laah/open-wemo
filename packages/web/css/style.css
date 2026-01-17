@@ -412,6 +412,28 @@ body {
   margin-bottom: var(--spacing-lg);
 }
 
+.empty-state-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.empty-state-actions .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.empty-state-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-dim);
+  line-height: 1.6;
+}
+
+.empty-state-hint strong {
+  color: var(--color-text-muted);
+}
+
 /* ============================================
    Toast Notifications
    ============================================ */
@@ -1450,4 +1472,839 @@ body {
   background-color: var(--color-surface);
   border-radius: var(--radius-md);
   font-family: monospace;
+}
+
+/* ============================================
+   Setup Mode UI
+   ============================================ */
+.setup-mode {
+  padding: var(--spacing-md);
+}
+
+.setup-mode-header {
+  text-align: center;
+  margin-bottom: var(--spacing-xl);
+}
+
+.setup-mode-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto var(--spacing-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-info) 0%, #2563eb 100%);
+  color: white;
+  border-radius: 50%;
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.4);
+  animation: pulseBlue 2s ease-in-out infinite;
+}
+
+@keyframes pulseBlue {
+  0%,
+  100% {
+    box-shadow: 0 0 30px rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 50px rgba(59, 130, 246, 0.6);
+  }
+}
+
+.setup-mode-icon svg {
+  width: 40px;
+  height: 40px;
+}
+
+.setup-mode-title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  margin-bottom: var(--spacing-sm);
+}
+
+.setup-mode-subtitle {
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+  max-width: 320px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.setup-mode-target {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  font-family: monospace;
+  font-size: var(--font-size-sm);
+  color: var(--color-info);
+}
+
+/* Test Results Section */
+.test-results {
+  margin-top: var(--spacing-lg);
+}
+
+.test-results-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.test-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.test-result-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--transition-fast);
+}
+
+.test-result-item.is-running {
+  border-color: var(--color-info);
+  animation: borderPulse 1s ease-in-out infinite;
+}
+
+@keyframes borderPulse {
+  0%,
+  100% {
+    border-color: var(--color-info);
+  }
+  50% {
+    border-color: rgba(59, 130, 246, 0.3);
+  }
+}
+
+.test-result-item.is-pass {
+  border-color: var(--color-on);
+}
+
+.test-result-item.is-fail {
+  border-color: var(--color-error);
+}
+
+.test-result-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.test-result-icon.is-pending {
+  background-color: var(--color-surface);
+  color: var(--color-text-dim);
+}
+
+.test-result-icon.is-running {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: var(--color-info);
+}
+
+.test-result-icon.is-pass {
+  background-color: rgba(74, 222, 128, 0.1);
+  color: var(--color-on);
+}
+
+.test-result-icon.is-fail {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--color-error);
+}
+
+.test-result-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.test-result-name {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  margin-bottom: var(--spacing-xs);
+}
+
+.test-result-message {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.test-result-details {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-dim);
+  margin-top: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-sm);
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.test-result-duration {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-dim);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Test Actions */
+.test-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-lg);
+}
+
+.test-actions .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Test Summary */
+.test-summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+}
+
+.test-summary-stat {
+  text-align: center;
+}
+
+.test-summary-value {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+}
+
+.test-summary-value.is-pass {
+  color: var(--color-on);
+}
+
+.test-summary-value.is-fail {
+  color: var(--color-error);
+}
+
+.test-summary-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Setup Mode Info Card */
+.setup-mode-info {
+  margin-top: var(--spacing-xl);
+  padding: var(--spacing-md);
+  background-color: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: var(--radius-lg);
+}
+
+.setup-mode-info-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-info);
+  margin-bottom: var(--spacing-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.setup-mode-info-text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+/* Back to Normal Button */
+.setup-mode-back {
+  margin-top: var(--spacing-xl);
+  text-align: center;
+}
+
+.setup-mode-back .btn {
+  min-width: 200px;
+}
+
+/* Light Theme - Setup Mode */
+[data-theme="light"] .setup-mode-icon {
+  box-shadow: 0 0 30px rgba(37, 99, 235, 0.3);
+}
+
+[data-theme="light"] .setup-mode-info {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+[data-theme="light"] .test-result-icon.is-running {
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+[data-theme="light"] .test-result-icon.is-pass {
+  background-color: rgba(34, 197, 94, 0.15);
+}
+
+[data-theme="light"] .test-result-icon.is-fail {
+  background-color: rgba(239, 68, 68, 0.15);
+}
+
+/* ============================================
+   Device Info Panel (CORS Bypass)
+   ============================================ */
+.device-info-panel {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.device-info-panel-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--color-text);
+}
+
+.device-info-panel-title svg {
+  color: var(--color-info);
+}
+
+.device-info-instructions {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-md);
+  line-height: 1.5;
+}
+
+.device-info-instructions ol {
+  margin: var(--spacing-sm) 0;
+  padding-left: var(--spacing-lg);
+}
+
+.device-info-instructions li {
+  margin-bottom: var(--spacing-xs);
+}
+
+.device-info-instructions strong {
+  color: var(--color-text);
+}
+
+/* Object tag container - displays setup.xml */
+.device-info-object-container {
+  position: relative;
+  margin: var(--spacing-md) 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background-color: #ffffff;
+  border: 2px solid var(--color-border);
+}
+
+.device-info-object-container object {
+  display: block;
+  width: 100%;
+  height: 250px;
+  border: none;
+  background-color: #ffffff;
+}
+
+.device-info-object-label {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: rgba(0, 0, 0, 0.7);
+  color: #ffffff;
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+
+/* Paste area for device info */
+.device-info-paste-section {
+  margin-top: var(--spacing-lg);
+}
+
+.device-info-paste-label {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-sm);
+}
+
+.device-info-paste-area {
+  width: 100%;
+  min-height: 120px;
+  padding: var(--spacing-md);
+  font-family: monospace;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  resize: vertical;
+  transition: border-color var(--transition-fast);
+}
+
+.device-info-paste-area:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.device-info-paste-area::placeholder {
+  color: var(--color-text-dim);
+}
+
+/* Parsed device info display */
+.device-info-parsed {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.device-info-parsed.is-success {
+  border-color: var(--color-on);
+  background-color: rgba(74, 222, 128, 0.1);
+}
+
+.device-info-parsed.is-error {
+  border-color: var(--color-error);
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.device-info-parsed-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.device-info-parsed-title.is-success {
+  color: var(--color-on);
+}
+
+.device-info-parsed-title.is-error {
+  color: var(--color-error);
+}
+
+.device-info-parsed-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-xs) 0;
+  font-size: var(--font-size-sm);
+}
+
+.device-info-parsed-row:not(:last-child) {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.device-info-parsed-label {
+  color: var(--color-text-muted);
+}
+
+.device-info-parsed-value {
+  font-family: monospace;
+  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Light Theme - Device Info Panel */
+[data-theme="light"] .device-info-object-label {
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="light"] .device-info-parsed.is-success {
+  background-color: rgba(34, 197, 94, 0.1);
+}
+
+[data-theme="light"] .device-info-parsed.is-error {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* ============================================
+   WiFi Setup Form
+   ============================================ */
+.wifi-setup-form-panel {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.wifi-setup-form-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--color-text);
+}
+
+.wifi-setup-form-title svg {
+  color: var(--color-primary);
+}
+
+.wifi-setup-error {
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+}
+
+.wifi-setup-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  background-color: rgba(245, 158, 11, 0.1);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+
+.wifi-setup-disclaimer svg {
+  flex-shrink: 0;
+  color: var(--color-warning);
+  margin-top: 2px;
+}
+
+.wifi-setup-disclaimer strong {
+  color: var(--color-warning);
+}
+
+.wifi-setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.wifi-setup-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.wifi-setup-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.wifi-setup-input,
+.wifi-setup-select {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast);
+}
+
+.wifi-setup-input:focus,
+.wifi-setup-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.wifi-setup-input:disabled,
+.wifi-setup-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wifi-setup-input::placeholder {
+  color: var(--color-text-dim);
+}
+
+/* Password field with toggle */
+.wifi-setup-password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.wifi-setup-password-input {
+  padding-right: 48px;
+}
+
+.wifi-setup-password-toggle {
+  position: absolute;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.wifi-setup-password-toggle:hover {
+  color: var(--color-text);
+  background-color: var(--color-bg-hover);
+}
+
+.wifi-setup-password-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wifi-setup-password-toggle .hidden {
+  display: none;
+}
+
+.wifi-setup-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-dim);
+}
+
+.wifi-setup-device-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
+
+.wifi-setup-device-info-label {
+  color: var(--color-text-muted);
+}
+
+.wifi-setup-device-info-value {
+  font-family: monospace;
+  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+}
+
+.wifi-setup-actions {
+  margin-top: var(--spacing-sm);
+}
+
+.wifi-setup-submit {
+  width: 100%;
+  justify-content: center;
+}
+
+/* WiFi Setup Success */
+.wifi-setup-success {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-xl);
+  background-color: var(--color-bg-elevated);
+  border: 2px solid var(--color-on);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.wifi-setup-success-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto var(--spacing-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-on) 0%, var(--color-primary-dim) 100%);
+  color: var(--color-bg);
+  border-radius: 50%;
+}
+
+.wifi-setup-success-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-on);
+  margin-bottom: var(--spacing-sm);
+}
+
+.wifi-setup-success-text {
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-lg);
+}
+
+.wifi-setup-success-text strong {
+  color: var(--color-text);
+}
+
+.wifi-setup-next-steps {
+  text-align: left;
+  padding: var(--spacing-md);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.wifi-setup-next-steps h4 {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin-bottom: var(--spacing-sm);
+}
+
+.wifi-setup-next-steps ol {
+  margin: 0;
+  padding-left: var(--spacing-lg);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.wifi-setup-next-steps li {
+  margin-bottom: var(--spacing-xs);
+}
+
+.wifi-setup-next-steps strong {
+  color: var(--color-text);
+}
+
+/* Curl Command Fallback Section */
+.wifi-setup-fallback {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.wifi-setup-curl-details {
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.wifi-setup-curl-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  color: var(--color-warning);
+  font-size: 0.875rem;
+  font-weight: 500;
+  list-style: none;
+}
+
+.wifi-setup-curl-summary::-webkit-details-marker {
+  display: none;
+}
+
+.wifi-setup-curl-summary::before {
+  content: "▶";
+  font-size: 0.625rem;
+  transition: transform var(--transition-fast);
+}
+
+.wifi-setup-curl-details[open] .wifi-setup-curl-summary::before {
+  transform: rotate(90deg);
+}
+
+.wifi-setup-curl-summary svg {
+  flex-shrink: 0;
+}
+
+.wifi-setup-curl-content {
+  padding: 1rem;
+  padding-top: 0;
+}
+
+.wifi-setup-curl-content p {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+
+.wifi-setup-curl-code {
+  background: #0d1117;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.wifi-setup-curl-code code {
+  font-family: "SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono", monospace;
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  color: #c9d1d9;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  gap: 0.375rem;
+}
+
+.btn-sm svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Light Theme - WiFi Setup */
+[data-theme="light"] .wifi-setup-error {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+[data-theme="light"] .wifi-setup-success {
+  border-color: var(--color-primary-dim);
+}
+
+[data-theme="light"] .wifi-setup-success-icon {
+  background: linear-gradient(135deg, var(--color-primary-dim) 0%, #1b5e20 100%);
+}
+
+[data-theme="light"] .wifi-setup-curl-code {
+  background: #f6f8fa;
+  border-color: #d0d7de;
+}
+
+[data-theme="light"] .wifi-setup-curl-code code {
+  color: #24292f;
 }

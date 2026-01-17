@@ -49,3 +49,8 @@ reference-codebase/
 AGENTS.md
 nul
 *.bun-build
+
+# Reference repositories (for development only)
+forge-repo/
+pywemo_repo/
+_ignore/

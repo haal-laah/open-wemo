@@ -61,19 +61,43 @@ async function getInsightClient(device: SavedDevice): Promise<InsightDeviceClien
   return new InsightDeviceClient(wemoDevice);
 }
 
-/**
- * Helper to get device state safely.
- */
-async function getDeviceState(device: SavedDevice): Promise<{
+/** Device state result type */
+type DeviceStateResult = {
   isOnline: boolean;
   state?: number;
   error?: string;
-}> {
-  try {
-    const client = await getDeviceClient(device);
-    const binaryState = await client.getBinaryState();
+};
 
-    return { isOnline: true, state: binaryState };
+/**
+ * Wraps a promise with a timeout.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
+/**
+ * Helper to get device state safely with timeout.
+ */
+async function getDeviceState(device: SavedDevice): Promise<DeviceStateResult> {
+  const offlineResult: DeviceStateResult = {
+    isOnline: false,
+    error: "Device not reachable (timeout)",
+  };
+
+  try {
+    // Wrap the entire operation in a 6-second timeout
+    return await withTimeout<DeviceStateResult>(
+      (async (): Promise<DeviceStateResult> => {
+        const client = await getDeviceClient(device);
+        const binaryState = await client.getBinaryState();
+        return { isOnline: true, state: binaryState };
+      })(),
+      6000,
+      offlineResult
+    );
   } catch (error) {
     return {
       isOnline: false,

@@ -126,10 +126,10 @@ async function initialize(): Promise<void> {
   console.log("[Main] Running initial device discovery...");
   runBackgroundDiscovery();
 
-  // Step 5: Show first-launch welcome if needed
+  // Step 5: Show first-launch setup if needed
   if (shouldShowWelcome()) {
-    console.log("[Main] First launch detected, opening welcome page...");
-    openInBrowser(`${getServerUrl(DEFAULT_PORT)}/welcome`);
+    console.log("[Main] First launch detected, opening device setup page...");
+    openInBrowser(`${getServerUrl(DEFAULT_PORT)}/setup`);
   }
 
   console.log("[Main] Open Wemo Bridge is ready!");
@@ -160,6 +160,10 @@ async function createSystemTray(): Promise<void> {
         onShowQR: () => {
           console.log("[Main] Opening QR code page...");
           openInBrowser(`${getServerUrl(DEFAULT_PORT)}/qr`);
+        },
+        onSetupDevice: () => {
+          console.log("[Main] Opening device setup page...");
+          openInBrowser(`${getServerUrl(DEFAULT_PORT)}/setup`);
         },
         onDiscover: async () => {
           console.log("[Main] Running device discovery...");
@@ -199,21 +203,47 @@ async function runBackgroundDiscovery(): Promise<void> {
     // Save discovered devices to database
     const db = getDatabase();
     for (const device of result.devices) {
-      const existing = db.getDeviceByHost(device.host);
-      if (!existing) {
-        db.saveDevice({
-          id: device.serialNumber || `device-${Date.now()}`,
-          name: device.name,
-          deviceType: device.deviceType,
-          host: device.host,
-          port: device.port,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-        console.log(`[Main] Saved new device: ${device.name}`);
-      } else {
-        db.updateLastSeen(existing.id);
+      const deviceId = device.serialNumber || `device-${Date.now()}`;
+
+      // Check if device exists by ID (serial number) - handles IP changes after re-setup
+      const existingById = db.getDeviceById(deviceId);
+      if (existingById) {
+        // Device exists - check if IP changed
+        if (existingById.host !== device.host || existingById.port !== device.port) {
+          console.log(
+            `[Main] Device ${device.name} IP changed: ${existingById.host}:${existingById.port} -> ${device.host}:${device.port}`
+          );
+          // Update the device with new IP
+          db.saveDevice({
+            ...existingById,
+            host: device.host,
+            port: device.port,
+            updatedAt: new Date().toISOString(),
+          });
+        } else {
+          db.updateLastSeen(existingById.id);
+        }
+        continue;
       }
+
+      // Check by host (for devices without serial numbers)
+      const existingByHost = db.getDeviceByHost(device.host);
+      if (existingByHost) {
+        db.updateLastSeen(existingByHost.id);
+        continue;
+      }
+
+      // New device - save it
+      db.saveDevice({
+        id: deviceId,
+        name: device.name,
+        deviceType: device.deviceType,
+        host: device.host,
+        port: device.port,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      console.log(`[Main] Saved new device: ${device.name}`);
     }
   } catch (error) {
     console.error("[Main] Discovery failed:", error);
@@ -314,7 +344,59 @@ function setupErrorHandlers(): void {
   }
 }
 
+// ==================== CLI Arguments ====================
+
+/**
+ * Parse and handle CLI arguments.
+ * Returns true if the app should continue running, false if it should exit.
+ */
+function handleCliArgs(): boolean {
+  const args = process.argv.slice(2);
+
+  // --help
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log(`
+Open Wemo Bridge
+
+Usage: open-wemo [options]
+
+Options:
+  --help, -h              Show this help message
+  --reset-first-launch    Reset first-launch flag (triggers setup wizard on next start)
+  --version, -v           Show version information
+`);
+    return false;
+  }
+
+  // --version
+  if (args.includes("--version") || args.includes("-v")) {
+    console.log("Open Wemo Bridge v1.0.0");
+    return false;
+  }
+
+  // --reset-first-launch
+  if (args.includes("--reset-first-launch")) {
+    console.log("[CLI] Resetting first-launch flag...");
+    try {
+      const db = getDatabase();
+      db.setBoolSetting("first_launch_completed", false);
+      db.setBoolSetting("dont_show_welcome", false);
+      console.log("[CLI] First-launch flag reset. Setup wizard will show on next start.");
+    } catch (error) {
+      console.error("[CLI] Failed to reset flag:", error);
+    }
+    return false;
+  }
+
+  return true;
+}
+
 // ==================== Application Entry ====================
+
+// Handle CLI arguments first
+if (!handleCliArgs()) {
+  process.exit(0);
+}
 
 // Set up error handlers first
 setupErrorHandlers();
