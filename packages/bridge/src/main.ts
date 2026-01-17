@@ -126,10 +126,10 @@ async function initialize(): Promise<void> {
   console.log("[Main] Running initial device discovery...");
   runBackgroundDiscovery();
 
-  // Step 5: Show first-launch welcome if needed
+  // Step 5: Show first-launch setup if needed
   if (shouldShowWelcome()) {
-    console.log("[Main] First launch detected, opening welcome page...");
-    openInBrowser(`${getServerUrl(DEFAULT_PORT)}/welcome`);
+    console.log("[Main] First launch detected, opening device setup page...");
+    openInBrowser(`${getServerUrl(DEFAULT_PORT)}/setup`);
   }
 
   console.log("[Main] Open Wemo Bridge is ready!");
