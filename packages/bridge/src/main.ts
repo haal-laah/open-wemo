@@ -318,7 +318,59 @@ function setupErrorHandlers(): void {
   }
 }
 
+// ==================== CLI Arguments ====================
+
+/**
+ * Parse and handle CLI arguments.
+ * Returns true if the app should continue running, false if it should exit.
+ */
+function handleCliArgs(): boolean {
+  const args = process.argv.slice(2);
+
+  // --help
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log(`
+Open Wemo Bridge
+
+Usage: open-wemo [options]
+
+Options:
+  --help, -h              Show this help message
+  --reset-first-launch    Reset first-launch flag (triggers setup wizard on next start)
+  --version, -v           Show version information
+`);
+    return false;
+  }
+
+  // --version
+  if (args.includes("--version") || args.includes("-v")) {
+    console.log("Open Wemo Bridge v1.0.0");
+    return false;
+  }
+
+  // --reset-first-launch
+  if (args.includes("--reset-first-launch")) {
+    console.log("[CLI] Resetting first-launch flag...");
+    try {
+      const db = getDatabase();
+      db.setBoolSetting("first_launch_completed", false);
+      db.setBoolSetting("dont_show_welcome", false);
+      console.log("[CLI] First-launch flag reset. Setup wizard will show on next start.");
+    } catch (error) {
+      console.error("[CLI] Failed to reset flag:", error);
+    }
+    return false;
+  }
+
+  return true;
+}
+
 // ==================== Application Entry ====================
+
+// Handle CLI arguments first
+if (!handleCliArgs()) {
+  process.exit(0);
+}
 
 // Set up error handlers first
 setupErrorHandlers();
