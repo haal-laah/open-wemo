@@ -856,11 +856,17 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
           <div class="form-group">
             <label class="form-label" for="security">Security Type</label>
             <select id="security" class="form-select">
-              <option value="WPA2/AES">WPA2 / AES (Recommended)</option>
-              <option value="WPA/TKIP">WPA / TKIP</option>
-              <option value="WPA/AES">WPA / AES</option>
+              <option value="WPA2PSK/AES">WPA2 / AES (Recommended)</option>
+              <option value="WPAPSK/TKIP">WPA / TKIP</option>
+              <option value="WPAPSK/AES">WPA / AES</option>
               <option value="OPEN/NONE">Open (No Password)</option>
             </select>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="channel">WiFi Channel</label>
+            <input type="number" id="channel" class="form-input" value="0" min="0" max="14">
+            <p class="form-hint">Use 0 for auto, or enter the specific channel (check AP List in diagnostics)</p>
           </div>
         </form>
         
@@ -990,7 +996,8 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       device: null,
       ssid: '',
       password: '',
-      security: 'WPA2/AES',
+      security: 'WPA2PSK/AES',
+      channel: 0,
       lastError: null,
       previousStep: 1
     };
@@ -1102,6 +1109,8 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       const ssid = document.getElementById('ssid').value.trim();
       const password = document.getElementById('password').value;
       const security = document.getElementById('security').value;
+      const channelInput = document.getElementById('channel');
+      const channel = channelInput ? parseInt(channelInput.value, 10) || 0 : 0;
       
       // Validation
       if (!ssid) {
@@ -1120,6 +1129,8 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       try {
         const [auth, encrypt] = security.split('/');
         
+        console.log('[Setup] Sending connect request:', { ssid, auth, encrypt, channel });
+        
         const response = await fetch(API_BASE + '/api/setup/connect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1128,6 +1139,7 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
             password,
             auth,
             encrypt,
+            channel,
             mac: state.device.mac,
             serial: state.device.serial
           })
@@ -1212,7 +1224,8 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       state.password = '';
       document.getElementById('ssid').value = '';
       document.getElementById('password').value = '';
-      document.getElementById('security').value = 'WPA2/AES';
+      document.getElementById('security').value = 'WPA2PSK/AES';
+      document.getElementById('channel').value = '0';
       goToStep(1);
     });
     

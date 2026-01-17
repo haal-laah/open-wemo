@@ -74,8 +74,17 @@ setupRoutes.post("/connect", async (c) => {
       return c.json({ success: false, error: "Missing or invalid serial" }, 400);
     }
 
-    // Auth defaults
-    const authMode = auth === "OPEN" ? "OPEN" : auth === "WPA" ? "WPA" : "WPA2";
+    // Auth defaults - must match the format from GetApList (e.g., WPA2PSK, WPAPSK)
+    let authMode: "OPEN" | "WPAPSK" | "WPA2PSK";
+    if (auth === "OPEN") {
+      authMode = "OPEN";
+    } else if (auth === "WPA" || auth === "WPAPSK") {
+      authMode = "WPAPSK";
+    } else {
+      // Default to WPA2PSK for WPA2, WPA2PSK, or any other value
+      authMode = "WPA2PSK";
+    }
+
     const encryptMode = encrypt === "NONE" ? "NONE" : encrypt === "TKIP" ? "TKIP" : "AES";
 
     // Password required unless open network
@@ -83,12 +92,17 @@ setupRoutes.post("/connect", async (c) => {
       return c.json({ success: false, error: "Password required for secured network" }, 400);
     }
 
-    console.log("[Setup API] Connecting to WiFi:", { ssid, auth: authMode, encrypt: encryptMode });
+    console.log("[Setup API] Connecting to WiFi:", {
+      ssid,
+      auth: authMode,
+      encrypt: encryptMode,
+      channel,
+    });
 
     const params: WifiConnectParams = {
       ssid,
       password: password ?? "",
-      auth: authMode as "OPEN" | "WPA" | "WPA2",
+      auth: authMode,
       encrypt: encryptMode as "NONE" | "AES" | "TKIP",
       mac,
       serial,

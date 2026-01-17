@@ -49,11 +49,12 @@ export interface SetupDetectionResult {
 
 /**
  * WiFi connection request parameters.
+ * Auth values must match what the device reports in GetApList (e.g., WPA2PSK, WPAPSK)
  */
 export interface WifiConnectParams {
   ssid: string;
   password: string;
-  auth: "OPEN" | "WPA" | "WPA2";
+  auth: "OPEN" | "WPAPSK" | "WPA2PSK";
   encrypt: "NONE" | "AES" | "TKIP";
   mac: string;
   serial: string;
