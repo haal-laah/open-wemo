@@ -362,14 +362,52 @@ export function buildConnectHomeNetworkPayload(params: {
 }
 
 /**
+ * Extended result with diagnostic info.
+ */
+export interface WifiConnectResultExtended extends WifiConnectResult {
+  diagnostics?: {
+    encryptedPassword: string;
+    soapPayload: string;
+    rawResponse?: string;
+    responseStatus?: number;
+    responseHeaders?: Record<string, string>;
+    attempts: Array<{
+      attempt: number;
+      status?: number;
+      error?: string;
+      response?: string;
+    }>;
+  };
+}
+
+/**
  * Sends the ConnectHomeNetwork SOAP command to configure WiFi.
  */
 export async function sendWifiConnectCommand(
-  params: WifiConnectParams
-): Promise<WifiConnectResult> {
+  params: WifiConnectParams,
+  verbose = true
+): Promise<WifiConnectResultExtended> {
   const { ssid, password, auth, encrypt, mac, serial, channel = 0 } = params;
 
+  const diagnostics: WifiConnectResultExtended["diagnostics"] = {
+    encryptedPassword: "",
+    soapPayload: "",
+    attempts: [],
+  };
+
   try {
+    // Log input params
+    console.log("[Setup] ============================================");
+    console.log("[Setup] WiFi Connect Command - Input Parameters");
+    console.log("[Setup] ============================================");
+    console.log("[Setup] SSID:", ssid);
+    console.log("[Setup] Auth:", auth);
+    console.log("[Setup] Encrypt:", encrypt);
+    console.log("[Setup] Channel:", channel);
+    console.log("[Setup] MAC:", mac);
+    console.log("[Setup] Serial:", serial);
+    console.log("[Setup] Password length:", password.length);
+
     // Encrypt the password
     const encryptedPassword = encryptWifiPassword(
       password,
@@ -379,12 +417,16 @@ export async function sendWifiConnectCommand(
       true
     );
 
-    console.log("[Setup] Encrypting WiFi password...", {
-      method: EncryptionMethod.METHOD_3,
-      addLengths: true,
-      originalLength: password.length,
-      encryptedLength: encryptedPassword.length,
-    });
+    diagnostics.encryptedPassword = encryptedPassword;
+
+    console.log("[Setup] ============================================");
+    console.log("[Setup] Encryption Details");
+    console.log("[Setup] ============================================");
+    console.log("[Setup] Method:", EncryptionMethod.METHOD_3);
+    console.log("[Setup] Add lengths:", true);
+    console.log("[Setup] Original password length:", password.length);
+    console.log("[Setup] Encrypted password (base64):", encryptedPassword);
+    console.log("[Setup] Encrypted password length:", encryptedPassword.length);
 
     // Build SOAP payload
     const payload = buildConnectHomeNetworkPayload({
@@ -395,57 +437,262 @@ export async function sendWifiConnectCommand(
       channel,
     });
 
-    const soapAction = `"${WIFI_SETUP_SERVICE_TYPE}#ConnectHomeNetwork"`;
+    diagnostics.soapPayload = payload;
 
-    console.log("[Setup] Sending ConnectHomeNetwork command...");
+    console.log("[Setup] ============================================");
+    console.log("[Setup] SOAP Payload");
+    console.log("[Setup] ============================================");
+    console.log("[Setup] URL:", WEMO_WIFI_SETUP_URL);
+    console.log("[Setup] Payload:");
+    console.log(payload);
+
+    const soapAction = `"${WIFI_SETUP_SERVICE_TYPE}#ConnectHomeNetwork"`;
+    console.log("[Setup] SOAPACTION header:", soapAction);
 
     // Send twice for reliability (per pywemo recommendation)
     for (let attempt = 0; attempt < 2; attempt++) {
+      const attemptInfo: (typeof diagnostics.attempts)[0] = {
+        attempt: attempt + 1,
+      };
+
+      console.log("[Setup] ============================================");
+      console.log(`[Setup] Attempt ${attempt + 1}/2`);
+      console.log("[Setup] ============================================");
+
       try {
+        const startTime = Date.now();
         const response = await fetch(WEMO_WIFI_SETUP_URL, {
           method: "POST",
           headers: {
-            "Content-Type": "text/xml",
+            "Content-Type": "text/xml; charset=utf-8",
             SOAPACTION: soapAction,
           },
           body: payload,
           signal: AbortSignal.timeout(10000),
         });
+        const elapsed = Date.now() - startTime;
+
+        attemptInfo.status = response.status;
+        console.log(`[Setup] Response status: ${response.status} (${elapsed}ms)`);
+
+        // Log all response headers
+        const headers: Record<string, string> = {};
+        response.headers.forEach((value, key) => {
+          headers[key] = value;
+          console.log(`[Setup] Response header: ${key}: ${value}`);
+        });
+        diagnostics.responseHeaders = headers;
+
+        const text = await response.text();
+        attemptInfo.response = text;
+        diagnostics.rawResponse = text;
+
+        console.log("[Setup] Response body:");
+        console.log(text);
 
         if (response.ok) {
-          const text = await response.text();
-          console.log("[Setup] Response received:", text.slice(0, 200));
-
           // Try to parse PairingStatus from response
           const statusMatch = text.match(/<PairingStatus>([^<]+)<\/PairingStatus>/);
           const status = statusMatch?.[1] ?? "Sent";
 
+          // Also look for any error
+          const errorMatch = text.match(/<errorDescription>([^<]+)<\/errorDescription>/);
+          if (errorMatch) {
+            console.log("[Setup] SOAP error in response:", errorMatch[1]);
+          }
+
+          diagnostics.attempts.push(attemptInfo);
+          diagnostics.responseStatus = response.status;
+
+          console.log("[Setup] ============================================");
+          console.log("[Setup] Result: SUCCESS");
+          console.log("[Setup] PairingStatus:", status);
+          console.log("[Setup] ============================================");
+
           return {
             success: true,
             status,
+            diagnostics: verbose ? diagnostics : undefined,
           };
         }
 
-        console.warn(`[Setup] Attempt ${attempt + 1} got status ${response.status}`);
+        console.warn(`[Setup] Attempt ${attempt + 1} got non-OK status ${response.status}`);
+        attemptInfo.error = `HTTP ${response.status}`;
       } catch (error) {
-        console.warn(`[Setup] Attempt ${attempt + 1} failed:`, error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        attemptInfo.error = errorMsg;
+        console.warn(`[Setup] Attempt ${attempt + 1} failed:`, errorMsg);
       }
+
+      diagnostics.attempts.push(attemptInfo);
 
       // Small delay between attempts
       if (attempt < 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        console.log("[Setup] Waiting 500ms before retry...");
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
     }
+
+    console.log("[Setup] ============================================");
+    console.log("[Setup] Result: FAILED after 2 attempts");
+    console.log("[Setup] ============================================");
 
     return {
       success: false,
       error: "Failed to send setup command after 2 attempts",
+      diagnostics: verbose ? diagnostics : undefined,
     };
   } catch (error) {
     console.error("[Setup] Error sending WiFi connect command:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
+      diagnostics: verbose ? diagnostics : undefined,
     };
   }
+}
+
+// ============================================
+// Diagnostic SOAP Commands
+// ============================================
+
+/**
+ * Result from a diagnostic SOAP call.
+ */
+export interface SoapDiagnosticResult {
+  success: boolean;
+  url: string;
+  action: string;
+  requestPayload: string;
+  responseStatus?: number;
+  responseHeaders?: Record<string, string>;
+  responseBody?: string;
+  error?: string;
+  duration?: number;
+}
+
+/**
+ * Sends a raw SOAP command and returns full diagnostic info.
+ */
+export async function sendRawSoapCommand(
+  url: string,
+  action: string,
+  payload: string,
+  timeout = 10000
+): Promise<SoapDiagnosticResult> {
+  console.log("[Diagnostic] ============================================");
+  console.log("[Diagnostic] Raw SOAP Request");
+  console.log("[Diagnostic] URL:", url);
+  console.log("[Diagnostic] SOAPACTION:", action);
+  console.log("[Diagnostic] Payload:");
+  console.log(payload);
+  console.log("[Diagnostic] ============================================");
+
+  try {
+    const startTime = Date.now();
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/xml; charset=utf-8",
+        SOAPACTION: action,
+      },
+      body: payload,
+      signal: AbortSignal.timeout(timeout),
+    });
+    const duration = Date.now() - startTime;
+
+    const headers: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
+
+    const body = await response.text();
+
+    console.log("[Diagnostic] Response status:", response.status);
+    console.log("[Diagnostic] Response headers:", JSON.stringify(headers, null, 2));
+    console.log("[Diagnostic] Response body:");
+    console.log(body);
+    console.log("[Diagnostic] Duration:", duration, "ms");
+
+    return {
+      success: response.ok,
+      url,
+      action,
+      requestPayload: payload,
+      responseStatus: response.status,
+      responseHeaders: headers,
+      responseBody: body,
+      duration,
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("[Diagnostic] Error:", errorMsg);
+
+    return {
+      success: false,
+      url,
+      action,
+      requestPayload: payload,
+      error: errorMsg,
+    };
+  }
+}
+
+/**
+ * Gets the list of available AP networks from the Wemo device.
+ */
+export async function getApList(): Promise<SoapDiagnosticResult> {
+  const payload = [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">',
+    "<s:Body>",
+    `<u:GetApList xmlns:u="${WIFI_SETUP_SERVICE_TYPE}">`,
+    "</u:GetApList>",
+    "</s:Body>",
+    "</s:Envelope>",
+  ].join("");
+
+  return sendRawSoapCommand(WEMO_WIFI_SETUP_URL, `"${WIFI_SETUP_SERVICE_TYPE}#GetApList"`, payload);
+}
+
+/**
+ * Gets the network status from the Wemo device.
+ */
+export async function getNetworkStatus(): Promise<SoapDiagnosticResult> {
+  const payload = [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">',
+    "<s:Body>",
+    `<u:GetNetworkStatus xmlns:u="${WIFI_SETUP_SERVICE_TYPE}">`,
+    "</u:GetNetworkStatus>",
+    "</s:Body>",
+    "</s:Envelope>",
+  ].join("");
+
+  return sendRawSoapCommand(
+    WEMO_WIFI_SETUP_URL,
+    `"${WIFI_SETUP_SERVICE_TYPE}#GetNetworkStatus"`,
+    payload
+  );
+}
+
+/**
+ * Closes the current network setup (cancels pairing mode).
+ */
+export async function closeSetup(): Promise<SoapDiagnosticResult> {
+  const payload = [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">',
+    "<s:Body>",
+    `<u:CloseSetup xmlns:u="${WIFI_SETUP_SERVICE_TYPE}">`,
+    "</u:CloseSetup>",
+    "</s:Body>",
+    "</s:Envelope>",
+  ].join("");
+
+  return sendRawSoapCommand(
+    WEMO_WIFI_SETUP_URL,
+    `"${WIFI_SETUP_SERVICE_TYPE}#CloseSetup"`,
+    payload
+  );
 }

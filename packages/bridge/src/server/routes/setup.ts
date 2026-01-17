@@ -6,8 +6,15 @@
 
 import { Hono } from "hono";
 import {
+  EncryptionMethod,
+  WEMO_WIFI_SETUP_URL,
   type WifiConnectParams,
+  closeSetup,
   detectSetupDevice,
+  encryptWifiPassword,
+  getApList,
+  getNetworkStatus,
+  sendRawSoapCommand,
   sendWifiConnectCommand,
 } from "../../wemo/setup";
 
@@ -96,6 +103,7 @@ setupRoutes.post("/connect", async (c) => {
         success: true,
         status: result.status,
         message: "Device is connecting to WiFi network",
+        diagnostics: result.diagnostics,
       });
     }
 
@@ -103,6 +111,7 @@ setupRoutes.post("/connect", async (c) => {
     return c.json({
       success: false,
       error: result.error ?? "Failed to send setup command",
+      diagnostics: result.diagnostics,
     });
   } catch (error) {
     console.error("[Setup API] Error processing connect request:", error);
@@ -114,4 +123,152 @@ setupRoutes.post("/connect", async (c) => {
       500
     );
   }
+});
+
+// ============================================
+// Diagnostic Endpoints
+// ============================================
+
+/**
+ * GET /api/setup/diag/aplist
+ *
+ * Gets the list of available WiFi networks visible to the Wemo device.
+ */
+setupRoutes.get("/diag/aplist", async (c) => {
+  console.log("[Setup API] Diagnostic: GetApList");
+  const result = await getApList();
+  return c.json(result);
+});
+
+/**
+ * GET /api/setup/diag/network-status
+ *
+ * Gets the current network status of the Wemo device.
+ */
+setupRoutes.get("/diag/network-status", async (c) => {
+  console.log("[Setup API] Diagnostic: GetNetworkStatus");
+  const result = await getNetworkStatus();
+  return c.json(result);
+});
+
+/**
+ * POST /api/setup/diag/close
+ *
+ * Closes/cancels the current setup process.
+ */
+setupRoutes.post("/diag/close", async (c) => {
+  console.log("[Setup API] Diagnostic: CloseSetup");
+  const result = await closeSetup();
+  return c.json(result);
+});
+
+/**
+ * POST /api/setup/diag/raw-soap
+ *
+ * Sends a raw SOAP command for debugging.
+ */
+setupRoutes.post("/diag/raw-soap", async (c) => {
+  console.log("[Setup API] Diagnostic: Raw SOAP");
+  try {
+    const body = await c.req.json();
+    const { url, action, payload, timeout } = body as {
+      url?: string;
+      action?: string;
+      payload?: string;
+      timeout?: number;
+    };
+
+    if (!url || !action || !payload) {
+      return c.json({ error: "Missing url, action, or payload" }, 400);
+    }
+
+    const result = await sendRawSoapCommand(url, action, payload, timeout);
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
+  }
+});
+
+/**
+ * POST /api/setup/diag/encrypt
+ *
+ * Test password encryption with given parameters.
+ */
+setupRoutes.post("/diag/encrypt", async (c) => {
+  console.log("[Setup API] Diagnostic: Encrypt password");
+  try {
+    const body = await c.req.json();
+    const { password, mac, serial, method, addLengths } = body as {
+      password?: string;
+      mac?: string;
+      serial?: string;
+      method?: number;
+      addLengths?: boolean;
+    };
+
+    if (!password || !mac || !serial) {
+      return c.json({ error: "Missing password, mac, or serial" }, 400);
+    }
+
+    const encMethod = method ?? EncryptionMethod.METHOD_3;
+    const withLengths = addLengths ?? true;
+
+    console.log("[Setup API] Encrypting:", {
+      mac,
+      serial,
+      method: encMethod,
+      addLengths: withLengths,
+    });
+
+    const encrypted = encryptWifiPassword(password, mac, serial, encMethod, withLengths);
+
+    return c.json({
+      input: {
+        password: password.replace(/./g, "*"),
+        passwordLength: password.length,
+        mac,
+        serial,
+        method: encMethod,
+        addLengths: withLengths,
+      },
+      encrypted,
+      encryptedLength: encrypted.length,
+    });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
+  }
+});
+
+/**
+ * GET /api/setup/diag/info
+ *
+ * Returns diagnostic info about the current setup state.
+ */
+setupRoutes.get("/diag/info", async (c) => {
+  console.log("[Setup API] Diagnostic: Info");
+
+  const detect = await detectSetupDevice();
+  const apList = detect.onWemoAp ? await getApList() : null;
+  const networkStatus = detect.onWemoAp ? await getNetworkStatus() : null;
+
+  return c.json({
+    detection: detect,
+    apList: apList
+      ? {
+          success: apList.success,
+          responseStatus: apList.responseStatus,
+          responseBody: apList.responseBody,
+        }
+      : null,
+    networkStatus: networkStatus
+      ? {
+          success: networkStatus.success,
+          responseStatus: networkStatus.responseStatus,
+          responseBody: networkStatus.responseBody,
+        }
+      : null,
+    endpoints: {
+      wifiSetupUrl: WEMO_WIFI_SETUP_URL,
+    },
+  });
 });

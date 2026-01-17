@@ -558,6 +558,155 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
     .hidden {
       display: none !important;
     }
+    
+    /* Diagnostics Panel */
+    .diag-panel {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid #374151;
+      border-radius: 8px;
+      margin-top: 20px;
+      overflow: hidden;
+    }
+    
+    .diag-header {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    .diag-header:hover {
+      background: rgba(0, 0, 0, 0.4);
+    }
+    
+    .diag-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .diag-toggle {
+      color: #64748b;
+      transition: transform 0.2s;
+    }
+    
+    .diag-toggle.open {
+      transform: rotate(180deg);
+    }
+    
+    .diag-content {
+      display: none;
+      padding: 16px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .diag-content.open {
+      display: block;
+    }
+    
+    .diag-section {
+      margin-bottom: 16px;
+    }
+    
+    .diag-section:last-child {
+      margin-bottom: 0;
+    }
+    
+    .diag-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    
+    .diag-code {
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 6px;
+      padding: 12px;
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+      font-size: 11px;
+      color: #a1a1aa;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .diag-code .success {
+      color: #4ade80;
+    }
+    
+    .diag-code .error {
+      color: #ef4444;
+    }
+    
+    .diag-code .warning {
+      color: #fbbf24;
+    }
+    
+    .diag-code .info {
+      color: #60a5fa;
+    }
+    
+    .diag-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    
+    .diag-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 6px;
+      border: 1px solid #374151;
+      background: transparent;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .diag-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: #4b5563;
+    }
+    
+    .diag-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    
+    .diag-status.success {
+      background: rgba(74, 222, 128, 0.1);
+      border: 1px solid rgba(74, 222, 128, 0.3);
+      color: #4ade80;
+    }
+    
+    .diag-status.error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+    
+    .diag-status.warning {
+      background: rgba(251, 191, 36, 0.1);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      color: #fbbf24;
+    }
   </style>
 </head>
 <body>
@@ -757,6 +906,58 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       <button class="btn btn-secondary" id="btn-another">
         Set Up Another Device
       </button>
+      
+      <!-- Diagnostics Panel -->
+      <div class="diag-panel" id="diag-panel">
+        <div class="diag-header" id="diag-header">
+          <span class="diag-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            Diagnostics
+          </span>
+          <svg class="diag-toggle" id="diag-toggle" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+        <div class="diag-content" id="diag-content">
+          <div class="diag-status" id="diag-status">
+            Waiting for data...
+          </div>
+          
+          <div class="diag-section">
+            <div class="diag-section-title">Response Status</div>
+            <div class="diag-code" id="diag-response-status">—</div>
+          </div>
+          
+          <div class="diag-section">
+            <div class="diag-section-title">Response Body</div>
+            <div class="diag-code" id="diag-response-body">—</div>
+          </div>
+          
+          <div class="diag-section">
+            <div class="diag-section-title">SOAP Request Payload</div>
+            <div class="diag-code" id="diag-request-payload">—</div>
+          </div>
+          
+          <div class="diag-section">
+            <div class="diag-section-title">Encrypted Password</div>
+            <div class="diag-code" id="diag-encrypted-password">—</div>
+          </div>
+          
+          <div class="diag-actions">
+            <button class="diag-btn" id="diag-btn-aplist">Get AP List</button>
+            <button class="diag-btn" id="diag-btn-status">Network Status</button>
+            <button class="diag-btn" id="diag-btn-copy">Copy All</button>
+          </div>
+          
+          <div class="diag-section" style="margin-top: 16px;">
+            <div class="diag-section-title">Additional Info</div>
+            <div class="diag-code" id="diag-extra">—</div>
+          </div>
+        </div>
+      </div>
     </div>
     
     <!-- Error State (shown when detection/connection fails) -->
@@ -934,10 +1135,26 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
         
         const data = await response.json();
         
+        // Always update diagnostics (even on success, to show what was sent)
+        if (typeof updateDiagnostics === 'function') {
+          updateDiagnostics(data);
+        }
+        
+        // Log full response to console for debugging
+        console.log('[Setup] Connect response:', JSON.stringify(data, null, 2));
+        
         if (data.success) {
           state.ssid = ssid;
           document.getElementById('success-ssid').textContent = ssid;
           goToStep(4);
+          
+          // Auto-open diagnostics panel to show results
+          const content = document.getElementById('diag-content');
+          const toggle = document.getElementById('diag-toggle');
+          if (content && !content.classList.contains('open')) {
+            content.classList.add('open');
+            toggle.classList.add('open');
+          }
         } else {
           showError('Setup Failed', data.error || 'Failed to send setup command to the device.');
         }
@@ -1012,6 +1229,156 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
     document.getElementById('wifi-form').addEventListener('submit', (e) => {
       e.preventDefault();
       document.getElementById('btn-connect').click();
+    });
+    
+    // ============================================
+    // Diagnostics Panel
+    // ============================================
+    
+    let lastDiagnostics = null;
+    
+    // Toggle diagnostics panel
+    document.getElementById('diag-header').addEventListener('click', () => {
+      const content = document.getElementById('diag-content');
+      const toggle = document.getElementById('diag-toggle');
+      content.classList.toggle('open');
+      toggle.classList.toggle('open');
+    });
+    
+    // Update diagnostics panel with response data
+    function updateDiagnostics(data) {
+      lastDiagnostics = data;
+      
+      const statusEl = document.getElementById('diag-status');
+      const responseStatusEl = document.getElementById('diag-response-status');
+      const responseBodyEl = document.getElementById('diag-response-body');
+      const requestPayloadEl = document.getElementById('diag-request-payload');
+      const encryptedPwEl = document.getElementById('diag-encrypted-password');
+      
+      if (data.success) {
+        statusEl.className = 'diag-status success';
+        statusEl.textContent = '✓ Command sent successfully (HTTP ' + (data.diagnostics?.responseStatus || 'OK') + ')';
+      } else {
+        statusEl.className = 'diag-status error';
+        statusEl.textContent = '✗ Failed: ' + (data.error || 'Unknown error');
+      }
+      
+      if (data.diagnostics) {
+        const diag = data.diagnostics;
+        
+        // Response status
+        if (diag.attempts && diag.attempts.length > 0) {
+          const attemptsInfo = diag.attempts.map(a => 
+            'Attempt ' + a.attempt + ': ' + (a.status ? 'HTTP ' + a.status : 'Error: ' + a.error)
+          ).join('\\n');
+          responseStatusEl.textContent = attemptsInfo;
+        }
+        
+        // Response body
+        if (diag.rawResponse) {
+          responseBodyEl.textContent = formatXml(diag.rawResponse);
+        }
+        
+        // Request payload
+        if (diag.soapPayload) {
+          requestPayloadEl.textContent = formatXml(diag.soapPayload);
+        }
+        
+        // Encrypted password
+        if (diag.encryptedPassword) {
+          encryptedPwEl.textContent = diag.encryptedPassword;
+        }
+      }
+    }
+    
+    // Format XML for display
+    function formatXml(xml) {
+      try {
+        // Simple XML formatting
+        let formatted = '';
+        let indent = 0;
+        const parts = xml.replace(/>\\s*</g, '>\\n<').split('\\n');
+        
+        for (const part of parts) {
+          if (part.match(/^\\/</)) {
+            indent--;
+          }
+          formatted += '  '.repeat(Math.max(0, indent)) + part + '\\n';
+          if (part.match(/^<[^/][^>]*[^/]>$/) && !part.match(/<.*\\/>/)) {
+            indent++;
+          }
+        }
+        return formatted.trim();
+      } catch {
+        return xml;
+      }
+    }
+    
+    // Get AP List diagnostic
+    document.getElementById('diag-btn-aplist').addEventListener('click', async () => {
+      const extraEl = document.getElementById('diag-extra');
+      extraEl.textContent = 'Fetching AP list...';
+      
+      try {
+        const response = await fetch(API_BASE + '/api/setup/diag/aplist');
+        const data = await response.json();
+        
+        let output = 'AP List Request:\\n';
+        output += 'Status: ' + (data.success ? 'Success' : 'Failed') + '\\n';
+        output += 'HTTP Status: ' + (data.responseStatus || 'N/A') + '\\n\\n';
+        
+        if (data.responseBody) {
+          output += 'Response:\\n' + formatXml(data.responseBody);
+        } else if (data.error) {
+          output += 'Error: ' + data.error;
+        }
+        
+        extraEl.textContent = output;
+      } catch (error) {
+        extraEl.textContent = 'Error fetching AP list: ' + error.message;
+      }
+    });
+    
+    // Get Network Status diagnostic
+    document.getElementById('diag-btn-status').addEventListener('click', async () => {
+      const extraEl = document.getElementById('diag-extra');
+      extraEl.textContent = 'Fetching network status...';
+      
+      try {
+        const response = await fetch(API_BASE + '/api/setup/diag/network-status');
+        const data = await response.json();
+        
+        let output = 'Network Status Request:\\n';
+        output += 'Status: ' + (data.success ? 'Success' : 'Failed') + '\\n';
+        output += 'HTTP Status: ' + (data.responseStatus || 'N/A') + '\\n\\n';
+        
+        if (data.responseBody) {
+          output += 'Response:\\n' + formatXml(data.responseBody);
+        } else if (data.error) {
+          output += 'Error: ' + data.error;
+        }
+        
+        extraEl.textContent = output;
+      } catch (error) {
+        extraEl.textContent = 'Error fetching network status: ' + error.message;
+      }
+    });
+    
+    // Copy all diagnostics
+    document.getElementById('diag-btn-copy').addEventListener('click', async () => {
+      const output = {
+        timestamp: new Date().toISOString(),
+        device: state.device,
+        ssid: state.ssid,
+        lastResponse: lastDiagnostics
+      };
+      
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(output, null, 2));
+        showToast('Diagnostics copied to clipboard');
+      } catch {
+        showToast('Failed to copy', true);
+      }
     });
   </script>
 </body>
