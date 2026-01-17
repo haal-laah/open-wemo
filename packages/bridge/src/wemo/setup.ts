@@ -62,6 +62,19 @@ export interface WifiConnectParams {
 }
 
 /**
+ * Parsed WiFi network from GetApList response.
+ */
+export interface WifiNetwork {
+  ssid: string;
+  channel: number;
+  signalStrength: number;
+  auth: string; // e.g., "WPA2PSK", "WPAPSK", "OPEN"
+  encrypt: string; // e.g., "AES", "TKIP", "NONE"
+  /** Raw auth/encrypt string from device (e.g., "WPA2PSK/AES") */
+  rawSecurity: string;
+}
+
+/**
  * WiFi connection result.
  */
 export interface WifiConnectResult {
@@ -724,4 +737,110 @@ export async function closeSetup(): Promise<SoapDiagnosticResult> {
     `"${WIFI_SETUP_SERVICE_TYPE}#CloseSetup"`,
     payload
   );
+}
+
+/**
+ * Result from fetching and parsing AP list.
+ */
+export interface ApListResult {
+  success: boolean;
+  networks: WifiNetwork[];
+  error?: string;
+  rawResponse?: string;
+}
+
+/**
+ * Fetches and parses the list of available WiFi networks visible to the Wemo device.
+ * Returns a sorted list (by signal strength, strongest first).
+ */
+export async function fetchApList(): Promise<ApListResult> {
+  try {
+    const result = await getApList();
+
+    if (!result.success || !result.responseBody) {
+      return {
+        success: false,
+        networks: [],
+        error: result.error ?? "Failed to get AP list from device",
+        rawResponse: result.responseBody,
+      };
+    }
+
+    // Parse the response XML to extract networks
+    // The response contains <ApList> with pipe-separated network entries
+    // Format: SSID|Channel|SignalStrength|Security
+    // Example: "MyNetwork|6|-50|WPA2PSK/AES"
+
+    const networks: WifiNetwork[] = [];
+
+    // Extract ApList content from response
+    const apListMatch = result.responseBody.match(/<ApList>([^<]*)<\/ApList>/);
+    if (!apListMatch || !apListMatch[1]) {
+      console.log("[Setup] No ApList found in response");
+      return {
+        success: true,
+        networks: [],
+        rawResponse: result.responseBody,
+      };
+    }
+
+    const apListContent = apListMatch[1].trim();
+    if (!apListContent) {
+      return {
+        success: true,
+        networks: [],
+        rawResponse: result.responseBody,
+      };
+    }
+
+    // Split by newline to get individual networks
+    // Each line is: SSID|Channel|Signal|Security
+    const lines = apListContent.split("\n").filter((line) => line.trim());
+
+    for (const line of lines) {
+      const parts = line.split("|");
+      if (parts.length >= 4) {
+        const ssid = (parts[0] ?? "").trim();
+        const channel = Number.parseInt(parts[1] ?? "0", 10) || 0;
+        const signalStrength = Number.parseInt(parts[2] ?? "0", 10) || 0;
+        const rawSecurity = (parts[3] ?? "").trim();
+
+        // Parse security into auth and encrypt
+        // Examples: "WPA2PSK/AES", "WPAPSK/TKIP", "OPEN/NONE"
+        const securityParts = rawSecurity.split("/");
+        const auth = securityParts[0] ?? "OPEN";
+        const encrypt = securityParts[1] ?? "NONE";
+
+        networks.push({
+          ssid,
+          channel,
+          signalStrength,
+          auth,
+          encrypt,
+          rawSecurity,
+        });
+      }
+    }
+
+    // Sort by signal strength (strongest first - less negative is stronger)
+    networks.sort((a, b) => b.signalStrength - a.signalStrength);
+
+    console.log(
+      `[Setup] Found ${networks.length} networks:`,
+      networks.map((n) => n.ssid)
+    );
+
+    return {
+      success: true,
+      networks,
+      rawResponse: result.responseBody,
+    };
+  } catch (error) {
+    console.error("[Setup] Error fetching AP list:", error);
+    return {
+      success: false,
+      networks: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }

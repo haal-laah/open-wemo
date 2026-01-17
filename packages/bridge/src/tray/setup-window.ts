@@ -824,15 +824,60 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
     <div class="step-content" id="step-3">
       <div class="content">
         <div class="instruction-box">
-          <h3>Step 3 of 4: Enter WiFi Credentials</h3>
-          <p style="color: #94a3b8; font-size: 14px; margin-top: -8px;">Enter your home WiFi details exactly as they appear.</p>
+          <h3>Step 3 of 4: Select Your WiFi Network</h3>
+          <p style="color: #94a3b8; font-size: 14px; margin-top: -8px;">Choose your home WiFi network from the list below.</p>
+        </div>
+        
+        <!-- Loading state while fetching networks -->
+        <div id="networks-loading" class="info-box" style="margin-bottom: 20px;">
+          <span class="spinner" style="width: 16px; height: 16px;"></span>
+          <span>Scanning for WiFi networks...</span>
+        </div>
+        
+        <!-- Error state if network scan fails -->
+        <div id="networks-error" class="error-box hidden" style="margin-bottom: 20px;">
+          <div class="error-box-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>Could not scan networks</span>
+          </div>
+          <p class="error-box-message" id="networks-error-msg">You can still enter your network details manually below.</p>
         </div>
         
         <form id="wifi-form">
           <div class="form-group">
-            <label class="form-label" for="ssid">WiFi Network Name (SSID)</label>
-            <input type="text" id="ssid" class="form-input" placeholder="Enter your WiFi network name" required autocomplete="off">
-            <p class="form-hint">Case-sensitive — enter exactly as it appears</p>
+            <label class="form-label" for="ssid-select">WiFi Network</label>
+            <select id="ssid-select" class="form-select" style="display: none;">
+              <option value="">Select a network...</option>
+            </select>
+            <input type="text" id="ssid" class="form-input" placeholder="Enter your WiFi network name" autocomplete="off" style="display: none;">
+            <div id="ssid-toggle-row" style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+              <button type="button" id="ssid-toggle-manual" class="btn-link" style="font-size: 12px; color: #60a5fa; background: none; border: none; cursor: pointer; padding: 0;">
+                Enter manually instead
+              </button>
+              <button type="button" id="ssid-refresh" class="btn-link" style="font-size: 12px; color: #60a5fa; background: none; border: none; cursor: pointer; padding: 0; display: none;">
+                ↻ Refresh list
+              </button>
+            </div>
+          </div>
+          
+          <!-- Network info display (shown when network is selected) -->
+          <div id="network-info" class="hidden" style="background: rgba(74, 222, 128, 0.1); border: 1px solid rgba(74, 222, 128, 0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px;">
+              <span style="color: #94a3b8;">Security</span>
+              <span id="network-security-display" style="color: #4ade80;">WPA2/AES</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px;">
+              <span style="color: #94a3b8;">Channel</span>
+              <span id="network-channel-display" style="color: #4ade80;">11</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px;">
+              <span style="color: #94a3b8;">Signal</span>
+              <span id="network-signal-display" style="color: #4ade80;">Strong</span>
+            </div>
           </div>
           
           <div class="form-group">
@@ -853,21 +898,9 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
             <p class="form-hint">Must be at least 8 characters</p>
           </div>
           
-          <div class="form-group">
-            <label class="form-label" for="security">Security Type</label>
-            <select id="security" class="form-select">
-              <option value="WPA2PSK/AES">WPA2 / AES (Recommended)</option>
-              <option value="WPAPSK/TKIP">WPA / TKIP</option>
-              <option value="WPAPSK/AES">WPA / AES</option>
-              <option value="OPEN/NONE">Open (No Password)</option>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label" for="channel">WiFi Channel</label>
-            <input type="number" id="channel" class="form-input" value="0" min="0" max="14">
-            <p class="form-hint">Use 0 for auto, or enter the specific channel (check AP List in diagnostics)</p>
-          </div>
+          <!-- Hidden fields for security and channel (auto-populated) -->
+          <input type="hidden" id="security" value="WPA2PSK/AES">
+          <input type="hidden" id="channel" value="0">
         </form>
         
         <div class="warning-box">
@@ -999,7 +1032,10 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       security: 'WPA2PSK/AES',
       channel: 0,
       lastError: null,
-      previousStep: 1
+      previousStep: 1,
+      networks: [], // Available WiFi networks from device scan
+      selectedNetwork: null, // Currently selected network object
+      manualSsidMode: false // Whether user is entering SSID manually
     };
     
     const API_BASE = 'http://localhost:${port}';
@@ -1099,14 +1135,211 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       }
     });
     
-    // Step 2: Continue to WiFi
-    document.getElementById('btn-to-wifi').addEventListener('click', () => {
+    // Step 2: Continue to WiFi - fetch networks first
+    document.getElementById('btn-to-wifi').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-to-wifi');
+      setButtonLoading(btn, true);
+      
+      // Show step 3 immediately with loading state
       goToStep(3);
+      
+      // Fetch available networks
+      await fetchNetworks();
+      
+      setButtonLoading(btn, false);
+    });
+    
+    // Fetch available WiFi networks from the device
+    async function fetchNetworks() {
+      const loadingEl = document.getElementById('networks-loading');
+      const errorEl = document.getElementById('networks-error');
+      const selectEl = document.getElementById('ssid-select');
+      const inputEl = document.getElementById('ssid');
+      const refreshBtn = document.getElementById('ssid-refresh');
+      
+      // Show loading, hide error
+      loadingEl.classList.remove('hidden');
+      errorEl.classList.add('hidden');
+      selectEl.style.display = 'none';
+      inputEl.style.display = 'none';
+      
+      try {
+        const response = await fetch(API_BASE + '/api/setup/networks');
+        const data = await response.json();
+        
+        if (data.success && data.networks && data.networks.length > 0) {
+          state.networks = data.networks;
+          state.manualSsidMode = false;
+          
+          // Populate the dropdown
+          selectEl.innerHTML = '<option value="">Select a network...</option>';
+          for (const network of data.networks) {
+            const option = document.createElement('option');
+            option.value = network.ssid;
+            option.dataset.channel = network.channel;
+            option.dataset.auth = network.auth;
+            option.dataset.encrypt = network.encrypt;
+            option.dataset.signal = network.signalStrength;
+            
+            // Format: SSID (signal strength indicator)
+            const signalBars = getSignalBars(network.signalStrength);
+            option.textContent = network.ssid + ' ' + signalBars;
+            selectEl.appendChild(option);
+          }
+          
+          // Show dropdown, hide input
+          selectEl.style.display = 'block';
+          inputEl.style.display = 'none';
+          refreshBtn.style.display = 'inline';
+          document.getElementById('ssid-toggle-manual').textContent = 'Enter manually instead';
+          
+          console.log('[Setup] Found ' + data.networks.length + ' networks');
+        } else {
+          // No networks found or error - fall back to manual mode
+          console.log('[Setup] No networks found, switching to manual mode');
+          state.networks = [];
+          state.manualSsidMode = true;
+          
+          errorEl.classList.remove('hidden');
+          document.getElementById('networks-error-msg').textContent = 
+            data.error || 'No networks found. Enter your network details manually below.';
+          
+          // Show input, hide dropdown
+          selectEl.style.display = 'none';
+          inputEl.style.display = 'block';
+          refreshBtn.style.display = 'inline';
+          document.getElementById('ssid-toggle-manual').textContent = 'Try scanning again';
+        }
+      } catch (error) {
+        console.error('[Setup] Error fetching networks:', error);
+        state.networks = [];
+        state.manualSsidMode = true;
+        
+        errorEl.classList.remove('hidden');
+        document.getElementById('networks-error-msg').textContent = 
+          'Could not scan for networks. Enter your network details manually below.';
+        
+        selectEl.style.display = 'none';
+        inputEl.style.display = 'block';
+        refreshBtn.style.display = 'inline';
+        document.getElementById('ssid-toggle-manual').textContent = 'Try scanning again';
+      } finally {
+        loadingEl.classList.add('hidden');
+      }
+    }
+    
+    // Convert signal strength to visual bars
+    function getSignalBars(rssi) {
+      // RSSI typically ranges from -30 (excellent) to -90 (poor)
+      if (rssi >= -50) return '▂▄▆█'; // Excellent
+      if (rssi >= -60) return '▂▄▆_'; // Good
+      if (rssi >= -70) return '▂▄__'; // Fair
+      return '▂___'; // Weak
+    }
+    
+    // Get signal description
+    function getSignalDescription(rssi) {
+      if (rssi >= -50) return 'Excellent';
+      if (rssi >= -60) return 'Good';
+      if (rssi >= -70) return 'Fair';
+      return 'Weak';
+    }
+    
+    // Handle network selection from dropdown
+    document.getElementById('ssid-select').addEventListener('change', (e) => {
+      const selectEl = e.target;
+      const selectedOption = selectEl.options[selectEl.selectedIndex];
+      const networkInfoEl = document.getElementById('network-info');
+      
+      if (selectedOption && selectedOption.value) {
+        // Find the network in state
+        const network = state.networks.find(n => n.ssid === selectedOption.value);
+        state.selectedNetwork = network;
+        
+        if (network) {
+          // Update hidden fields
+          document.getElementById('security').value = network.auth + '/' + network.encrypt;
+          document.getElementById('channel').value = network.channel;
+          
+          // Show network info
+          document.getElementById('network-security-display').textContent = 
+            formatSecurity(network.auth, network.encrypt);
+          document.getElementById('network-channel-display').textContent = network.channel;
+          document.getElementById('network-signal-display').textContent = 
+            getSignalDescription(network.signalStrength) + ' (' + network.signalStrength + ' dBm)';
+          
+          networkInfoEl.classList.remove('hidden');
+          
+          // Toggle password field based on security
+          const passwordGroup = document.getElementById('password').closest('.form-group');
+          if (network.auth === 'OPEN') {
+            passwordGroup.style.display = 'none';
+            document.getElementById('password').removeAttribute('required');
+          } else {
+            passwordGroup.style.display = 'block';
+            document.getElementById('password').setAttribute('required', '');
+          }
+        }
+      } else {
+        state.selectedNetwork = null;
+        networkInfoEl.classList.add('hidden');
+      }
+    });
+    
+    // Format security type for display
+    function formatSecurity(auth, encrypt) {
+      if (auth === 'OPEN') return 'Open (No Password)';
+      if (auth === 'WPA2PSK') return 'WPA2 / ' + encrypt;
+      if (auth === 'WPAPSK') return 'WPA / ' + encrypt;
+      return auth + ' / ' + encrypt;
+    }
+    
+    // Toggle between dropdown and manual input
+    document.getElementById('ssid-toggle-manual').addEventListener('click', () => {
+      const selectEl = document.getElementById('ssid-select');
+      const inputEl = document.getElementById('ssid');
+      const networkInfoEl = document.getElementById('network-info');
+      const toggleBtn = document.getElementById('ssid-toggle-manual');
+      
+      if (state.manualSsidMode) {
+        // Currently in manual mode - try scanning again
+        fetchNetworks();
+      } else {
+        // Switch to manual mode
+        state.manualSsidMode = true;
+        state.selectedNetwork = null;
+        
+        selectEl.style.display = 'none';
+        inputEl.style.display = 'block';
+        networkInfoEl.classList.add('hidden');
+        toggleBtn.textContent = 'Select from list';
+        
+        // Reset to default security (WPA2)
+        document.getElementById('security').value = 'WPA2PSK/AES';
+        document.getElementById('channel').value = '0';
+        
+        // Show password field
+        const passwordGroup = document.getElementById('password').closest('.form-group');
+        passwordGroup.style.display = 'block';
+        document.getElementById('password').setAttribute('required', '');
+      }
+    });
+    
+    // Refresh networks button
+    document.getElementById('ssid-refresh').addEventListener('click', () => {
+      fetchNetworks();
     });
     
     // Step 3: Connect device
     document.getElementById('btn-connect').addEventListener('click', async () => {
-      const ssid = document.getElementById('ssid').value.trim();
+      // Get SSID from either dropdown or manual input
+      let ssid;
+      if (state.manualSsidMode) {
+        ssid = document.getElementById('ssid').value.trim();
+      } else {
+        ssid = document.getElementById('ssid-select').value;
+      }
+      
       const password = document.getElementById('password').value;
       const security = document.getElementById('security').value;
       const channelInput = document.getElementById('channel');
@@ -1114,7 +1347,7 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       
       // Validation
       if (!ssid) {
-        showToast('Please enter your WiFi network name', true);
+        showToast('Please select or enter a WiFi network', true);
         return;
       }
       
@@ -1195,18 +1428,6 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       }
     });
     
-    // Security type change - toggle password field
-    document.getElementById('security').addEventListener('change', (e) => {
-      const passwordGroup = document.getElementById('password').closest('.form-group');
-      if (e.target.value === 'OPEN/NONE') {
-        passwordGroup.style.display = 'none';
-        document.getElementById('password').removeAttribute('required');
-      } else {
-        passwordGroup.style.display = 'block';
-        document.getElementById('password').setAttribute('required', '');
-      }
-    });
-    
     // Back buttons
     document.getElementById('btn-back-1').addEventListener('click', () => goToStep(1));
     document.getElementById('btn-back-2').addEventListener('click', () => goToStep(2));
@@ -1222,10 +1443,21 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       state.device = null;
       state.ssid = '';
       state.password = '';
+      state.networks = [];
+      state.selectedNetwork = null;
+      state.manualSsidMode = false;
+      
+      // Reset form fields
       document.getElementById('ssid').value = '';
+      document.getElementById('ssid-select').value = '';
       document.getElementById('password').value = '';
       document.getElementById('security').value = 'WPA2PSK/AES';
       document.getElementById('channel').value = '0';
+      
+      // Reset UI elements
+      document.getElementById('network-info').classList.add('hidden');
+      document.getElementById('networks-error').classList.add('hidden');
+      
       goToStep(1);
     });
     

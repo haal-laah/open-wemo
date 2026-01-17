@@ -12,6 +12,7 @@ import {
   closeSetup,
   detectSetupDevice,
   encryptWifiPassword,
+  fetchApList,
   getApList,
   getNetworkStatus,
   sendRawSoapCommand,
@@ -36,6 +37,26 @@ setupRoutes.get("/detect", async (c) => {
     console.log("[Setup API] On Wemo AP but no device info");
   } else {
     console.log("[Setup API] Not on Wemo AP");
+  }
+
+  return c.json(result);
+});
+
+/**
+ * GET /api/setup/networks
+ *
+ * Gets the list of available WiFi networks visible to the Wemo device.
+ * Returns a parsed, sorted list (by signal strength, strongest first).
+ */
+setupRoutes.get("/networks", async (c) => {
+  console.log("[Setup API] Fetching available WiFi networks...");
+
+  const result = await fetchApList();
+
+  if (result.success) {
+    console.log(`[Setup API] Found ${result.networks.length} networks`);
+  } else {
+    console.error("[Setup API] Failed to fetch networks:", result.error);
   }
 
   return c.json(result);
