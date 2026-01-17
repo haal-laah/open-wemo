@@ -1138,3 +1138,501 @@ export function formatTestResults(results) {
 
   return lines.join("\n");
 }
+
+// ============================================
+// WiFi Password Encryption (AES-128-CBC)
+// ============================================
+
+/**
+ * Encryption method constants.
+ * Based on pywemo's encryption logic.
+ */
+export const EncryptionMethod = {
+  /** Original method: mac[:6] + serial + mac[6:12] */
+  METHOD_1: 1,
+  /** RTOS devices: method 1 + extra suffix */
+  METHOD_2: 2,
+  /** Binary option devices: complex mixing + base64 extra */
+  METHOD_3: 3,
+};
+
+/**
+ * Extra suffix for method 2 encryption.
+ * @private
+ */
+const METHOD_2_SUFFIX = "b3{8t;80dIN{ra83eC1s?M70?683@2Yf";
+
+/**
+ * Generates keydata for WiFi password encryption.
+ *
+ * Based on pywemo's encrypt_aes128 function.
+ *
+ * @param {string} mac - Device MAC address (12 hex chars, no separators)
+ * @param {string} serial - Device serial number
+ * @param {number} method - Encryption method (1, 2, or 3)
+ * @returns {string} Keydata for encryption
+ */
+export function generateKeydata(mac, serial, method) {
+  if (!mac || mac.length < 12) {
+    throw new Error("MAC address must be at least 12 characters");
+  }
+  if (!serial) {
+    throw new Error("Serial number is required");
+  }
+
+  // Normalize MAC - remove any separators and uppercase
+  const cleanMac = mac.replace(/[:\-]/g, "").toUpperCase();
+
+  switch (method) {
+    case EncryptionMethod.METHOD_1:
+      // Original method: mac[:6] + serial + mac[6:12]
+      return cleanMac.slice(0, 6) + serial + cleanMac.slice(6, 12);
+
+    case EncryptionMethod.METHOD_2:
+      // RTOS method: method 1 + extra suffix
+      return cleanMac.slice(0, 6) + serial + cleanMac.slice(6, 12) + METHOD_2_SUFFIX;
+
+    case EncryptionMethod.METHOD_3: {
+      // Binary option method: complex mixing + base64 extra
+      const characters = [
+        "Onboard",
+        "$",
+        "Application",
+        "@",
+        "Device",
+        "&",
+        "Information",
+        "#",
+        "Wemo",
+      ].join("");
+
+      // Mix characters: odd indices go to end, even indices go to start
+      let mixed = "";
+      for (let i = 0; i < characters.length; i++) {
+        if (i % 2) {
+          mixed = mixed + characters[i];
+        } else {
+          mixed = characters[i] + mixed;
+        }
+      }
+
+      // Base64 encode and take first 32 chars
+      const extra = btoa(mixed).slice(0, 32);
+      // Result: 'b2Ujb3Rtb24mY3ZEbmlhaXBBZGFiT25v'
+
+      return (
+        cleanMac.slice(0, 3) +
+        cleanMac.slice(9, 12) +
+        serial +
+        extra +
+        cleanMac.slice(6, 9) +
+        cleanMac.slice(3, 6)
+      );
+    }
+
+    default:
+      throw new Error(`Invalid encryption method: ${method}. Must be 1, 2, or 3.`);
+  }
+}
+
+/**
+ * Detects which encryption method to use based on device flags.
+ *
+ * Based on pywemo's detection logic:
+ * - binaryOption=1 -> method 3
+ * - rtos=1 or new_algo=1 -> method 2
+ * - otherwise -> method 1
+ *
+ * @param {object} deviceFlags - Flags from device config
+ * @param {string} [deviceFlags.binaryOption] - "0" or "1"
+ * @param {string} [deviceFlags.rtos] - "0" or "1"
+ * @param {string} [deviceFlags.new_algo] - "0" or "1"
+ * @returns {{method: number, addLengths: boolean}} Encryption method and whether to add lengths
+ */
+export function detectEncryptionMethod(deviceFlags = {}) {
+  const binaryOption = deviceFlags.binaryOption === "1";
+  const rtos = deviceFlags.rtos === "1";
+  const newAlgo = deviceFlags.new_algo === "1";
+
+  // pywemo logic from Android APK analysis
+  if (binaryOption) {
+    return { method: EncryptionMethod.METHOD_3, addLengths: true };
+  }
+  if (rtos || newAlgo) {
+    // Note: pywemo's actual implementation uses addLengths=false for method 2
+    // but the comment says "add_lengths = True for all 3 methods"
+    // Using pywemo's actual behavior: method in (1, 3) gets lengths
+    return { method: EncryptionMethod.METHOD_2, addLengths: false };
+  }
+  return { method: EncryptionMethod.METHOD_1, addLengths: true };
+}
+
+/**
+ * Implements OpenSSL's EVP_BytesToKey key derivation with MD5.
+ *
+ * OpenSSL uses this to derive key and IV from password and salt.
+ * This matches: openssl enc -aes-128-cbc -md md5 -S <salt> -pass pass:<password>
+ *
+ * @param {Uint8Array} password - Password bytes
+ * @param {Uint8Array} salt - Salt bytes (8 bytes)
+ * @param {number} keyLen - Desired key length in bytes
+ * @param {number} ivLen - Desired IV length in bytes
+ * @returns {Promise<{key: Uint8Array, iv: Uint8Array}>} Derived key and IV
+ */
+async function evpBytesToKey(password, salt, keyLen, ivLen) {
+  const totalLen = keyLen + ivLen;
+  const result = new Uint8Array(totalLen);
+  let resultOffset = 0;
+  let prevHash = new Uint8Array(0);
+
+  while (resultOffset < totalLen) {
+    // Concatenate: prevHash + password + salt
+    const data = new Uint8Array(prevHash.length + password.length + salt.length);
+    data.set(prevHash, 0);
+    data.set(password, prevHash.length);
+    data.set(salt, prevHash.length + password.length);
+
+    // Hash with MD5
+    const hashBuffer = await crypto.subtle.digest("MD5", data);
+    prevHash = new Uint8Array(hashBuffer);
+
+    // Copy to result
+    const copyLen = Math.min(prevHash.length, totalLen - resultOffset);
+    result.set(prevHash.slice(0, copyLen), resultOffset);
+    resultOffset += copyLen;
+  }
+
+  return {
+    key: result.slice(0, keyLen),
+    iv: result.slice(keyLen, keyLen + ivLen),
+  };
+}
+
+/**
+ * Encrypts a WiFi password using AES-128-CBC.
+ *
+ * Replicates pywemo's encrypt_aes128 function using Web Crypto API.
+ *
+ * @param {string} password - WiFi password to encrypt
+ * @param {string} mac - Device MAC address (12 hex chars)
+ * @param {string} serial - Device serial number
+ * @param {number} method - Encryption method (1, 2, or 3)
+ * @param {boolean} addLengths - Whether to append length bytes
+ * @returns {Promise<string>} Base64-encoded encrypted password
+ */
+export async function encryptWifiPassword(password, mac, serial, method, addLengths) {
+  if (!password) {
+    throw new Error("Password is required");
+  }
+
+  // Generate keydata based on method
+  const keydata = generateKeydata(mac, serial, method);
+
+  // Extract salt (first 8 chars) and IV (first 16 chars) from keydata
+  const salt = new TextEncoder().encode(keydata.slice(0, 8));
+  const iv = new TextEncoder().encode(keydata.slice(0, 16));
+
+  if (salt.length !== 8 || iv.length !== 16) {
+    console.warn("[Encryption] Device meta information may not be supported");
+  }
+
+  // Derive key using EVP_BytesToKey (OpenSSL's key derivation)
+  const passwordBytes = new TextEncoder().encode(password);
+  const keydataBytes = new TextEncoder().encode(keydata);
+  const { key: derivedKey } = await evpBytesToKey(keydataBytes, salt, 16, 16);
+
+  // Import the derived key for AES-CBC
+  const cryptoKey = await crypto.subtle.importKey("raw", derivedKey, { name: "AES-CBC" }, false, [
+    "encrypt",
+  ]);
+
+  // Encrypt with AES-128-CBC
+  // Note: Web Crypto API automatically handles PKCS7 padding
+  const encryptedBuffer = await crypto.subtle.encrypt(
+    { name: "AES-CBC", iv },
+    cryptoKey,
+    passwordBytes
+  );
+
+  // Base64 encode
+  const encryptedBytes = new Uint8Array(encryptedBuffer);
+  let encryptedPassword = btoa(String.fromCharCode(...encryptedBytes));
+
+  // Optionally append length bytes (xxyy format)
+  // xx: length of encrypted password as 2-digit hex
+  // yy: length of original password as 2-digit hex
+  if (addLengths) {
+    const lenEncrypted = encryptedPassword.length;
+    const lenOriginal = password.length;
+
+    if (lenEncrypted > 255 || lenOriginal > 255) {
+      throw new Error(
+        `Password too long: ${lenOriginal} chars (${lenEncrypted} after encryption). Max is 255.`
+      );
+    }
+
+    // Format as 2-digit lowercase hex
+    const hexEncrypted = lenEncrypted.toString(16).padStart(2, "0");
+    const hexOriginal = lenOriginal.toString(16).padStart(2, "0");
+    encryptedPassword += hexEncrypted + hexOriginal;
+  }
+
+  console.log("[Encryption] Password encrypted successfully", {
+    method,
+    addLengths,
+    originalLength: password.length,
+    encryptedLength: encryptedPassword.length,
+  });
+
+  return encryptedPassword;
+}
+
+// ============================================
+// SOAP Payload Building
+// ============================================
+
+/**
+ * WiFi authentication modes supported by Wemo.
+ */
+export const AuthMode = {
+  OPEN: "OPEN",
+  WPA: "WPA",
+  WPA2: "WPA2",
+  WPA_WPA2: "WPA/WPA2",
+};
+
+/**
+ * WiFi encryption methods supported by Wemo.
+ */
+export const EncryptType = {
+  NONE: "NONE",
+  AES: "AES",
+  TKIP: "TKIP",
+  TKIPAES: "TKIPAES",
+};
+
+/**
+ * SOAP action URL for WiFiSetup service.
+ */
+export const WIFI_SETUP_ACTION_URL = `${WEMO_SETUP_URL}/upnp/control/WiFiSetup1`;
+
+/**
+ * Builds a SOAP envelope for ConnectHomeNetwork action.
+ *
+ * @param {object} params - Connection parameters
+ * @param {string} params.ssid - WiFi network SSID
+ * @param {string} params.auth - Authentication mode (OPEN, WPA, WPA2, WPA/WPA2)
+ * @param {string} params.password - Encrypted password (from encryptWifiPassword)
+ * @param {string} params.encrypt - Encryption type (NONE, AES, TKIP, TKIPAES)
+ * @param {string|number} params.channel - WiFi channel (0 for auto)
+ * @returns {string} SOAP XML envelope
+ */
+export function buildConnectHomeNetworkPayload({ ssid, auth, password, encrypt, channel }) {
+  // Escape XML special characters in SSID (it could contain special chars)
+  const escapeXml = (str) =>
+    String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+
+  const escapedSsid = escapeXml(ssid);
+  const escapedPassword = escapeXml(password);
+
+  return [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">',
+    "<s:Body>",
+    '<u:ConnectHomeNetwork xmlns:u="urn:Belkin:service:WiFiSetup:1">',
+    `<ssid>${escapedSsid}</ssid>`,
+    `<auth>${auth}</auth>`,
+    `<password>${escapedPassword}</password>`,
+    `<encrypt>${encrypt}</encrypt>`,
+    `<channel>${channel}</channel>`,
+    "</u:ConnectHomeNetwork>",
+    "</s:Body>",
+    "</s:Envelope>",
+  ].join("");
+}
+
+/**
+ * Builds a SOAP envelope for CloseSetup action.
+ *
+ * @returns {string} SOAP XML envelope
+ */
+export function buildCloseSetupPayload() {
+  return [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">',
+    "<s:Body>",
+    '<u:CloseSetup xmlns:u="urn:Belkin:service:WiFiSetup:1">',
+    "</u:CloseSetup>",
+    "</s:Body>",
+    "</s:Envelope>",
+  ].join("");
+}
+
+/**
+ * Builds a SOAP envelope for GetNetworkStatus action.
+ *
+ * @returns {string} SOAP XML envelope
+ */
+export function buildGetNetworkStatusPayload() {
+  return [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">',
+    "<s:Body>",
+    '<u:GetNetworkStatus xmlns:u="urn:Belkin:service:WiFiSetup:1">',
+    "</u:GetNetworkStatus>",
+    "</s:Body>",
+    "</s:Envelope>",
+  ].join("");
+}
+
+// ============================================
+// Send Setup Command via sendBeacon
+// ============================================
+
+/**
+ * Sends a SOAP payload to the Wemo device using sendBeacon.
+ *
+ * sendBeacon is a fire-and-forget API that bypasses CORS restrictions.
+ * We cannot read the response, but the command is sent.
+ *
+ * From pywemo: "success rate is much higher if the ConnectHomeNetwork
+ * command is sent twice (not sure why!)"
+ *
+ * @param {string} payload - SOAP XML payload
+ * @param {string} [url=WIFI_SETUP_ACTION_URL] - Target URL
+ * @returns {boolean} True if sendBeacon accepted the request
+ */
+export function sendSetupCommand(payload, url = WIFI_SETUP_ACTION_URL) {
+  // Use text/plain to avoid CORS preflight
+  // Note: Wemo accepts the SOAP payload regardless of Content-Type
+  const blob = new Blob([payload], { type: "text/plain" });
+
+  const success = navigator.sendBeacon(url, blob);
+
+  console.log(`[Setup] sendBeacon ${success ? "queued" : "FAILED"}`, {
+    url,
+    payloadLength: payload.length,
+  });
+
+  return success;
+}
+
+/**
+ * Sends the ConnectHomeNetwork command to configure WiFi.
+ *
+ * This function:
+ * 1. Encrypts the WiFi password
+ * 2. Builds the SOAP payload
+ * 3. Sends the command twice (for reliability, per pywemo)
+ *
+ * @param {object} params - Setup parameters
+ * @param {string} params.ssid - WiFi network SSID
+ * @param {string} params.password - WiFi password (plaintext)
+ * @param {string} params.mac - Device MAC address
+ * @param {string} params.serial - Device serial number
+ * @param {string} [params.auth="WPA2"] - Auth mode
+ * @param {string} [params.encrypt="AES"] - Encryption type
+ * @param {number} [params.channel=0] - WiFi channel (0=auto)
+ * @param {number} [params.method] - Encryption method override (1, 2, or 3)
+ * @param {boolean} [params.addLengths] - Whether to add length bytes override
+ * @returns {Promise<{success: boolean, message: string}>} Result
+ */
+export async function sendWifiSetupCommand({
+  ssid,
+  password,
+  mac,
+  serial,
+  auth = AuthMode.WPA2,
+  encrypt = EncryptType.AES,
+  channel = 0,
+  method,
+  addLengths,
+}) {
+  try {
+    // Validate required params
+    if (!ssid) throw new Error("SSID is required");
+    if (!password) throw new Error("Password is required");
+    if (!mac) throw new Error("MAC address is required");
+    if (!serial) throw new Error("Serial number is required");
+
+    // Detect encryption method if not specified
+    let encMethod = method;
+    let encAddLengths = addLengths;
+    if (encMethod === undefined) {
+      // Default to method 1 with lengths (most common)
+      // User's device had binaryOption=1, new_algo=1 which would be method 3
+      // but we'll let them override via params
+      const detected = detectEncryptionMethod({});
+      encMethod = detected.method;
+      encAddLengths = detected.addLengths;
+    }
+    if (encAddLengths === undefined) {
+      encAddLengths = encMethod !== EncryptionMethod.METHOD_2;
+    }
+
+    console.log("[Setup] Encrypting WiFi password...", {
+      method: encMethod,
+      addLengths: encAddLengths,
+    });
+
+    // Encrypt the password
+    const encryptedPassword = await encryptWifiPassword(
+      password,
+      mac,
+      serial,
+      encMethod,
+      encAddLengths
+    );
+
+    // Build the SOAP payload
+    const payload = buildConnectHomeNetworkPayload({
+      ssid,
+      auth,
+      password: encryptedPassword,
+      encrypt,
+      channel,
+    });
+
+    console.log("[Setup] Sending ConnectHomeNetwork command...");
+
+    // Send twice for reliability (per pywemo recommendation)
+    const success1 = sendSetupCommand(payload);
+    await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay between sends
+    const success2 = sendSetupCommand(payload);
+
+    if (success1 || success2) {
+      console.log("[Setup] ConnectHomeNetwork command sent successfully");
+      return {
+        success: true,
+        message: "Setup command sent. The device will attempt to connect to your WiFi network.",
+      };
+    }
+
+    console.error("[Setup] sendBeacon failed for both attempts");
+    return {
+      success: false,
+      message: "Failed to send setup command. Please try again.",
+    };
+  } catch (error) {
+    console.error("[Setup] Error sending setup command:", error);
+    return {
+      success: false,
+      message: `Setup failed: ${error.message}`,
+    };
+  }
+}
+
+/**
+ * Sends the CloseSetup command to finalize device setup.
+ *
+ * @returns {boolean} True if sendBeacon accepted the request
+ */
+export function sendCloseSetupCommand() {
+  const payload = buildCloseSetupPayload();
+  return sendSetupCommand(payload);
+}

@@ -34,6 +34,15 @@ const state = {
     raw: {},
     pastedText: "",
   },
+  // WiFi setup form state
+  wifiSetup: {
+    ssid: "",
+    password: "",
+    securityType: "WPA2/AES", // Default to most common
+    sending: false,
+    sent: false,
+    error: null,
+  },
   settings: {
     refreshInterval: 30000,
     theme: "dark",
@@ -771,6 +780,7 @@ function renderOfflineBanner() {
 function renderSetupMode() {
   const deviceInfoPanelHtml = renderDeviceInfoPanel();
   const parsedInfoHtml = renderParsedDeviceInfo();
+  const wifiFormHtml = renderWifiCredentialsForm();
 
   return `
     <div class="setup-mode">
@@ -785,7 +795,7 @@ function renderSetupMode() {
         </div>
         <h1 class="setup-mode-title">Device Setup Mode</h1>
         <p class="setup-mode-subtitle">
-          Connected to Wemo device access point. Follow the steps below to get the device information needed for setup.
+          Connected to Wemo device access point. Follow the steps below to configure your device.
         </p>
         <div class="setup-mode-target">${WEMO_SETUP_URL}</div>
       </div>
@@ -808,6 +818,8 @@ function renderSetupMode() {
       </div>
 
       ${parsedInfoHtml}
+
+      ${wifiFormHtml}
 
       <div class="setup-mode-back">
         <button class="btn" id="back-to-normal-btn">
@@ -935,6 +947,118 @@ function renderParsedDeviceInfo() {
       `
           : ""
       }
+    </div>
+  `;
+}
+
+/**
+ * Renders the WiFi credentials form.
+ * Only shows when device info (serial and MAC) has been parsed.
+ */
+function renderWifiCredentialsForm() {
+  const { serial, mac } = state.deviceInfo;
+  const { ssid, password, securityType, sending, sent, error } = state.wifiSetup;
+
+  // Don't show form until we have device info
+  if (!serial || !mac) {
+    return "";
+  }
+
+  // If setup was sent successfully, show success message
+  if (sent) {
+    return `
+      <div class="wifi-setup-success">
+        <div class="wifi-setup-success-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <h3 class="wifi-setup-success-title">Setup Command Sent!</h3>
+        <p class="wifi-setup-success-text">
+          The device is now attempting to connect to <strong>${escapeHtml(ssid)}</strong>.
+        </p>
+        <div class="wifi-setup-next-steps">
+          <h4>Next Steps:</h4>
+          <ol>
+            <li>Wait about <strong>30 seconds</strong> for the device to connect</li>
+            <li>Switch your phone back to your <strong>home WiFi</strong> network</li>
+            <li>Return to this app and tap <strong>"Discover Devices"</strong></li>
+          </ol>
+        </div>
+        <div class="wifi-setup-actions">
+          <button class="btn btn-primary" id="wifi-setup-done-btn">
+            Got It - Back to Home
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="wifi-setup-form-panel">
+      <h2 class="wifi-setup-form-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+          <line x1="12" y1="20" x2="12.01" y2="20"/>
+        </svg>
+        Step 3: Enter Your WiFi Credentials
+      </h2>
+      
+      ${error ? `<div class="wifi-setup-error">${escapeHtml(error)}</div>` : ""}
+
+      <form id="wifi-setup-form" class="wifi-setup-form">
+        <div class="wifi-setup-field">
+          <label for="wifi-ssid" class="wifi-setup-label">WiFi Network Name (SSID)</label>
+          <input 
+            type="text" 
+            id="wifi-ssid" 
+            class="wifi-setup-input"
+            value="${escapeHtml(ssid)}"
+            placeholder="Enter your WiFi network name"
+            required
+            autocomplete="off"
+            ${sending ? "disabled" : ""}
+          />
+        </div>
+
+        <div class="wifi-setup-field">
+          <label for="wifi-password" class="wifi-setup-label">WiFi Password</label>
+          <input 
+            type="password" 
+            id="wifi-password" 
+            class="wifi-setup-input"
+            value="${escapeHtml(password)}"
+            placeholder="Enter your WiFi password"
+            minlength="8"
+            required
+            autocomplete="off"
+            ${sending ? "disabled" : ""}
+          />
+          <span class="wifi-setup-hint">Password must be at least 8 characters</span>
+        </div>
+
+        <div class="wifi-setup-field">
+          <label for="wifi-security" class="wifi-setup-label">Security Type</label>
+          <select id="wifi-security" class="wifi-setup-select" ${sending ? "disabled" : ""}>
+            <option value="WPA2/AES" ${securityType === "WPA2/AES" ? "selected" : ""}>WPA2 / AES (Recommended)</option>
+            <option value="WPA/TKIP" ${securityType === "WPA/TKIP" ? "selected" : ""}>WPA / TKIP</option>
+            <option value="WPA/AES" ${securityType === "WPA/AES" ? "selected" : ""}>WPA / AES</option>
+            <option value="OPEN/NONE" ${securityType === "OPEN/NONE" ? "selected" : ""}>Open (No Password)</option>
+          </select>
+        </div>
+
+        <div class="wifi-setup-device-info">
+          <span class="wifi-setup-device-info-label">Configuring device:</span>
+          <span class="wifi-setup-device-info-value">${escapeHtml(serial)}</span>
+        </div>
+
+        <div class="wifi-setup-actions">
+          <button type="submit" class="btn btn-primary wifi-setup-submit" ${sending ? "disabled" : ""}>
+            ${sending ? '<span class="spinner spinner-sm"></span> Sending...' : "Connect Device to WiFi"}
+          </button>
+        </div>
+      </form>
     </div>
   `;
 }
@@ -1071,6 +1195,8 @@ function attachSetupModeListeners() {
   const backBtn = document.getElementById("back-to-normal-btn");
   const pasteArea = document.getElementById("device-info-paste");
   const objectContainer = document.getElementById("device-info-object-container");
+  const wifiForm = document.getElementById("wifi-setup-form");
+  const wifiDoneBtn = document.getElementById("wifi-setup-done-btn");
 
   if (backBtn) {
     backBtn.addEventListener("click", handleBackToNormal);
@@ -1101,6 +1227,37 @@ function attachSetupModeListeners() {
         </div>
       `;
     };
+  }
+
+  // WiFi credentials form submission
+  if (wifiForm) {
+    wifiForm.addEventListener("submit", handleWifiFormSubmit);
+
+    // Track form field changes
+    const ssidInput = document.getElementById("wifi-ssid");
+    const passwordInput = document.getElementById("wifi-password");
+    const securitySelect = document.getElementById("wifi-security");
+
+    if (ssidInput) {
+      ssidInput.addEventListener("input", (e) => {
+        state.wifiSetup.ssid = e.target.value;
+      });
+    }
+    if (passwordInput) {
+      passwordInput.addEventListener("input", (e) => {
+        state.wifiSetup.password = e.target.value;
+      });
+    }
+    if (securitySelect) {
+      securitySelect.addEventListener("change", (e) => {
+        state.wifiSetup.securityType = e.target.value;
+      });
+    }
+  }
+
+  // "Done" button after successful setup
+  if (wifiDoneBtn) {
+    wifiDoneBtn.addEventListener("click", handleWifiSetupDone);
   }
 }
 
@@ -1138,6 +1295,195 @@ function handleDeviceInfoPaste(event) {
       `Found device info: Serial ${parsed.serial || "not found"}, MAC ${parsed.mac || "not found"}`
     );
   }
+
+  // Show WiFi form if device info found (re-render to add the form)
+  if (parsed.serial && parsed.mac) {
+    const wifiFormContainer = document.querySelector(".wifi-setup-form-panel");
+    if (!wifiFormContainer) {
+      // Insert WiFi form after parsed info
+      const parsedInfo = document.querySelector(".device-info-parsed");
+      if (parsedInfo) {
+        parsedInfo.insertAdjacentHTML("afterend", renderWifiCredentialsForm());
+        // Re-attach listeners for the new form
+        attachWifiFormListeners();
+      }
+    }
+  }
+}
+
+/**
+ * Attaches event listeners specifically for the WiFi form.
+ * Called after form is dynamically inserted.
+ */
+function attachWifiFormListeners() {
+  const wifiForm = document.getElementById("wifi-setup-form");
+  const ssidInput = document.getElementById("wifi-ssid");
+  const passwordInput = document.getElementById("wifi-password");
+  const securitySelect = document.getElementById("wifi-security");
+
+  if (wifiForm) {
+    wifiForm.addEventListener("submit", handleWifiFormSubmit);
+  }
+  if (ssidInput) {
+    ssidInput.addEventListener("input", (e) => {
+      state.wifiSetup.ssid = e.target.value;
+    });
+  }
+  if (passwordInput) {
+    passwordInput.addEventListener("input", (e) => {
+      state.wifiSetup.password = e.target.value;
+    });
+  }
+  if (securitySelect) {
+    securitySelect.addEventListener("change", (e) => {
+      state.wifiSetup.securityType = e.target.value;
+    });
+  }
+}
+
+/**
+ * Handles WiFi credentials form submission.
+ */
+async function handleWifiFormSubmit(event) {
+  event.preventDefault();
+
+  const { ssid, password, securityType } = state.wifiSetup;
+  const { serial, mac } = state.deviceInfo;
+
+  // Validate
+  if (!ssid.trim()) {
+    state.wifiSetup.error = "Please enter your WiFi network name";
+    updateWifiFormUI();
+    return;
+  }
+
+  if (securityType !== "OPEN/NONE" && password.length < 8) {
+    state.wifiSetup.error = "Password must be at least 8 characters";
+    updateWifiFormUI();
+    return;
+  }
+
+  // Parse security type
+  const [auth, encrypt] = securityType.split("/");
+  const authMode = auth === "OPEN" ? AuthMode.OPEN : auth === "WPA" ? AuthMode.WPA : AuthMode.WPA2;
+  const encryptType =
+    encrypt === "NONE" ? EncryptType.NONE : encrypt === "TKIP" ? EncryptType.TKIP : EncryptType.AES;
+
+  // Clear error and set sending state
+  state.wifiSetup.error = null;
+  state.wifiSetup.sending = true;
+  updateWifiFormUI();
+
+  console.log("[App] Sending WiFi setup command...", {
+    ssid,
+    auth: authMode,
+    encrypt: encryptType,
+  });
+
+  // Send the setup command
+  const result = await sendWifiSetupCommand({
+    ssid: ssid.trim(),
+    password,
+    mac,
+    serial,
+    auth: authMode,
+    encrypt: encryptType,
+    channel: 0, // Auto
+    // Use method 3 with lengths for devices with binaryOption=1 (common for newer devices)
+    method: EncryptionMethod.METHOD_3,
+    addLengths: true,
+  });
+
+  state.wifiSetup.sending = false;
+
+  if (result.success) {
+    state.wifiSetup.sent = true;
+    showToast("Setup command sent!", "success");
+    announceToScreenReader(
+      "WiFi setup command sent successfully. Follow the next steps to complete setup."
+    );
+  } else {
+    state.wifiSetup.error = result.message;
+    showToast(result.message, "error");
+  }
+
+  updateWifiFormUI();
+}
+
+/**
+ * Updates the WiFi form UI without full re-render.
+ */
+function updateWifiFormUI() {
+  const formPanel = document.querySelector(".wifi-setup-form-panel");
+
+  if (state.wifiSetup.sent) {
+    // Replace form with success message
+    if (formPanel) {
+      formPanel.outerHTML = renderWifiCredentialsForm();
+      // Attach done button listener
+      const doneBtn = document.getElementById("wifi-setup-done-btn");
+      if (doneBtn) {
+        doneBtn.addEventListener("click", handleWifiSetupDone);
+      }
+    }
+  } else if (formPanel) {
+    // Update error display
+    const errorDiv = formPanel.querySelector(".wifi-setup-error");
+    if (state.wifiSetup.error) {
+      if (errorDiv) {
+        errorDiv.textContent = state.wifiSetup.error;
+      } else {
+        const title = formPanel.querySelector(".wifi-setup-form-title");
+        if (title) {
+          title.insertAdjacentHTML(
+            "afterend",
+            `<div class="wifi-setup-error">${escapeHtml(state.wifiSetup.error)}</div>`
+          );
+        }
+      }
+    } else if (errorDiv) {
+      errorDiv.remove();
+    }
+
+    // Update button state
+    const submitBtn = formPanel.querySelector(".wifi-setup-submit");
+    if (submitBtn) {
+      submitBtn.disabled = state.wifiSetup.sending;
+      submitBtn.innerHTML = state.wifiSetup.sending
+        ? '<span class="spinner spinner-sm"></span> Sending...'
+        : "Connect Device to WiFi";
+    }
+
+    // Update input states
+    const inputs = formPanel.querySelectorAll("input, select");
+    for (const input of inputs) {
+      input.disabled = state.wifiSetup.sending;
+    }
+  }
+}
+
+/**
+ * Handles the "Done" button after successful WiFi setup.
+ */
+function handleWifiSetupDone() {
+  // Reset setup state
+  state.wifiSetup = {
+    ssid: "",
+    password: "",
+    securityType: "WPA2/AES",
+    sending: false,
+    sent: false,
+    error: null,
+  };
+  state.deviceInfo = {
+    serial: null,
+    mac: null,
+    raw: {},
+    pastedText: "",
+  };
+
+  // Go back to normal mode
+  handleBackToNormal();
 }
 
 /**

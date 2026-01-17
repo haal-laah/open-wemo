@@ -1950,3 +1950,202 @@ body {
 [data-theme="light"] .device-info-parsed.is-error {
   background-color: rgba(239, 68, 68, 0.1);
 }
+
+/* ============================================
+   WiFi Setup Form
+   ============================================ */
+.wifi-setup-form-panel {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.wifi-setup-form-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--color-text);
+}
+
+.wifi-setup-form-title svg {
+  color: var(--color-primary);
+}
+
+.wifi-setup-error {
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+}
+
+.wifi-setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.wifi-setup-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.wifi-setup-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.wifi-setup-input,
+.wifi-setup-select {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast);
+}
+
+.wifi-setup-input:focus,
+.wifi-setup-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.wifi-setup-input:disabled,
+.wifi-setup-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wifi-setup-input::placeholder {
+  color: var(--color-text-dim);
+}
+
+.wifi-setup-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-dim);
+}
+
+.wifi-setup-device-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
+
+.wifi-setup-device-info-label {
+  color: var(--color-text-muted);
+}
+
+.wifi-setup-device-info-value {
+  font-family: monospace;
+  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+}
+
+.wifi-setup-actions {
+  margin-top: var(--spacing-sm);
+}
+
+.wifi-setup-submit {
+  width: 100%;
+  justify-content: center;
+}
+
+/* WiFi Setup Success */
+.wifi-setup-success {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-xl);
+  background-color: var(--color-bg-elevated);
+  border: 2px solid var(--color-on);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.wifi-setup-success-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto var(--spacing-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-on) 0%, var(--color-primary-dim) 100%);
+  color: var(--color-bg);
+  border-radius: 50%;
+}
+
+.wifi-setup-success-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-on);
+  margin-bottom: var(--spacing-sm);
+}
+
+.wifi-setup-success-text {
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-lg);
+}
+
+.wifi-setup-success-text strong {
+  color: var(--color-text);
+}
+
+.wifi-setup-next-steps {
+  text-align: left;
+  padding: var(--spacing-md);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.wifi-setup-next-steps h4 {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin-bottom: var(--spacing-sm);
+}
+
+.wifi-setup-next-steps ol {
+  margin: 0;
+  padding-left: var(--spacing-lg);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.wifi-setup-next-steps li {
+  margin-bottom: var(--spacing-xs);
+}
+
+.wifi-setup-next-steps strong {
+  color: var(--color-text);
+}
+
+/* Light Theme - WiFi Setup */
+[data-theme="light"] .wifi-setup-error {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+[data-theme="light"] .wifi-setup-success {
+  border-color: var(--color-primary-dim);
+}
+
+[data-theme="light"] .wifi-setup-success-icon {
+  background: linear-gradient(135deg, var(--color-primary-dim) 0%, #1b5e20 100%);
+}
