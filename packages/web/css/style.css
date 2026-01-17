@@ -1986,6 +1986,30 @@ body {
   font-size: var(--font-size-sm);
 }
 
+.wifi-setup-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  background-color: rgba(245, 158, 11, 0.1);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+
+.wifi-setup-disclaimer svg {
+  flex-shrink: 0;
+  color: var(--color-warning);
+  margin-top: 2px;
+}
+
+.wifi-setup-disclaimer strong {
+  color: var(--color-warning);
+}
+
 .wifi-setup-form {
   display: flex;
   flex-direction: column;
@@ -2031,6 +2055,47 @@ body {
 
 .wifi-setup-input::placeholder {
   color: var(--color-text-dim);
+}
+
+/* Password field with toggle */
+.wifi-setup-password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.wifi-setup-password-input {
+  padding-right: 48px;
+}
+
+.wifi-setup-password-toggle {
+  position: absolute;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.wifi-setup-password-toggle:hover {
+  color: var(--color-text);
+  background-color: var(--color-bg-hover);
+}
+
+.wifi-setup-password-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wifi-setup-password-toggle .hidden {
+  display: none;
 }
 
 .wifi-setup-hint {

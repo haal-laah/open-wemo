@@ -1268,50 +1268,10 @@ export function detectEncryptionMethod(deviceFlags = {}) {
 }
 
 /**
- * Implements OpenSSL's EVP_BytesToKey key derivation with MD5.
+ * Encrypts a WiFi password using AES-128-CBC with OpenSSL-compatible key derivation.
  *
- * OpenSSL uses this to derive key and IV from password and salt.
- * This matches: openssl enc -aes-128-cbc -md md5 -S <salt> -pass pass:<password>
- *
- * @param {Uint8Array} password - Password bytes
- * @param {Uint8Array} salt - Salt bytes (8 bytes)
- * @param {number} keyLen - Desired key length in bytes
- * @param {number} ivLen - Desired IV length in bytes
- * @returns {Promise<{key: Uint8Array, iv: Uint8Array}>} Derived key and IV
- */
-async function evpBytesToKey(password, salt, keyLen, ivLen) {
-  const totalLen = keyLen + ivLen;
-  const result = new Uint8Array(totalLen);
-  let resultOffset = 0;
-  let prevHash = new Uint8Array(0);
-
-  while (resultOffset < totalLen) {
-    // Concatenate: prevHash + password + salt
-    const data = new Uint8Array(prevHash.length + password.length + salt.length);
-    data.set(prevHash, 0);
-    data.set(password, prevHash.length);
-    data.set(salt, prevHash.length + password.length);
-
-    // Hash with MD5
-    const hashBuffer = await crypto.subtle.digest("MD5", data);
-    prevHash = new Uint8Array(hashBuffer);
-
-    // Copy to result
-    const copyLen = Math.min(prevHash.length, totalLen - resultOffset);
-    result.set(prevHash.slice(0, copyLen), resultOffset);
-    resultOffset += copyLen;
-  }
-
-  return {
-    key: result.slice(0, keyLen),
-    iv: result.slice(keyLen, keyLen + ivLen),
-  };
-}
-
-/**
- * Encrypts a WiFi password using AES-128-CBC.
- *
- * Replicates pywemo's encrypt_aes128 function using Web Crypto API.
+ * Uses CryptoJS library which replicates OpenSSL's EVP_BytesToKey internally.
+ * This matches pywemo's encrypt_aes128 function behavior.
  *
  * @param {string} password - WiFi password to encrypt
  * @param {string} mac - Device MAC address (12 hex chars)
@@ -1321,6 +1281,11 @@ async function evpBytesToKey(password, salt, keyLen, ivLen) {
  * @returns {Promise<string>} Base64-encoded encrypted password
  */
 export async function encryptWifiPassword(password, mac, serial, method, addLengths) {
+  // Check CryptoJS is loaded
+  if (typeof CryptoJS === "undefined") {
+    throw new Error("CryptoJS library not loaded");
+  }
+
   if (!password) {
     throw new Error("Password is required");
   }
@@ -1329,34 +1294,27 @@ export async function encryptWifiPassword(password, mac, serial, method, addLeng
   const keydata = generateKeydata(mac, serial, method);
 
   // Extract salt (first 8 chars) and IV (first 16 chars) from keydata
-  const salt = new TextEncoder().encode(keydata.slice(0, 8));
-  const iv = new TextEncoder().encode(keydata.slice(0, 16));
+  const saltStr = keydata.slice(0, 8);
+  const ivStr = keydata.slice(0, 16);
 
-  if (salt.length !== 8 || iv.length !== 16) {
+  if (saltStr.length !== 8 || ivStr.length !== 16) {
     console.warn("[Encryption] Device meta information may not be supported");
   }
 
-  // Derive key using EVP_BytesToKey (OpenSSL's key derivation)
-  const passwordBytes = new TextEncoder().encode(password);
-  const keydataBytes = new TextEncoder().encode(keydata);
-  const { key: derivedKey } = await evpBytesToKey(keydataBytes, salt, 16, 16);
+  // Convert IV to CryptoJS format
+  const iv = CryptoJS.enc.Utf8.parse(ivStr);
 
-  // Import the derived key for AES-CBC
-  const cryptoKey = await crypto.subtle.importKey("raw", derivedKey, { name: "AES-CBC" }, false, [
-    "encrypt",
-  ]);
+  // Use CryptoJS's OpenSSL-compatible encryption
+  // This internally uses EVP_BytesToKey with MD5 (OpenSSL default)
+  const encrypted = CryptoJS.AES.encrypt(password, keydata, {
+    iv: iv,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7,
+  });
 
-  // Encrypt with AES-128-CBC
-  // Note: Web Crypto API automatically handles PKCS7 padding
-  const encryptedBuffer = await crypto.subtle.encrypt(
-    { name: "AES-CBC", iv },
-    cryptoKey,
-    passwordBytes
-  );
-
-  // Base64 encode
-  const encryptedBytes = new Uint8Array(encryptedBuffer);
-  let encryptedPassword = btoa(String.fromCharCode(...encryptedBytes));
+  // Get the ciphertext (without the "Salted__" prefix that OpenSSL adds)
+  // CryptoJS.AES.encrypt returns an object; .ciphertext gives us raw encrypted bytes
+  let encryptedPassword = encrypted.ciphertext.toString(CryptoJS.enc.Base64);
 
   // Optionally append length bytes (xxyy format)
   // xx: length of encrypted password as 2-digit hex

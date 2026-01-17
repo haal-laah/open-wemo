@@ -6,8 +6,8 @@
  * - API calls: Network-first with timeout fallback
  */
 
-const CACHE_NAME = "open-wemo-v6";
-const STATIC_CACHE = "open-wemo-static-v6";
+const CACHE_NAME = "open-wemo-v10";
+const STATIC_CACHE = "open-wemo-static-v10";
 
 // Static assets to cache on install
 const STATIC_ASSETS = [
@@ -17,6 +17,7 @@ const STATIC_ASSETS = [
   "/js/app.js",
   "/js/api.js",
   "/js/setup-mode.js",
+  "/js/vendor/crypto-js.min.js",
   "/manifest.json",
   "/icons/icon.svg",
 ];
