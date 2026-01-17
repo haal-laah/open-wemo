@@ -22,7 +22,7 @@ import { toApiError } from "./errors";
 import { deviceRoutes } from "./routes/devices";
 import { discoveryRoutes } from "./routes/discovery";
 import { setupRoutes } from "./routes/setup";
-import { initStaticFiles, staticFileMiddleware } from "./static";
+import { initStaticFiles, isDevMode, staticFileMiddleware } from "./static";
 
 /**
  * Generates a debug page to preview install instructions modals.
@@ -323,7 +323,8 @@ export function createApp(config: ServerConfig = {}): Hono {
   });
 
   // Device setup page (for configuring new Wemo devices' WiFi)
-  app.get("/setup", createSetupRoute(DEFAULT_CONFIG.port));
+  // Debug mode shows diagnostics panel (only in dev)
+  app.get("/setup", createSetupRoute(DEFAULT_CONFIG.port, isDevMode()));
 
   // API endpoint to save welcome preferences
   app.post("/api/welcome/complete", async (c) => {

@@ -19,6 +19,8 @@
 export interface SetupPageConfig {
   /** Server port for API calls */
   port: number;
+  /** Show diagnostics panel (dev mode only) */
+  debug?: boolean;
 }
 
 /**
@@ -26,7 +28,7 @@ export interface SetupPageConfig {
  * Uses client-side JavaScript to manage step transitions.
  */
 export function generateSetupPageHtml(config: SetupPageConfig): string {
-  const { port } = config;
+  const { port, debug = false } = config;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -968,7 +970,7 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
             </svg>
             <span>Could not scan networks</span>
           </div>
-          <p class="error-box-message" id="networks-error-msg">You can still enter your network details manually below.</p>
+          <p class="error-box-message" id="networks-error-msg">Please try refreshing the list.</p>
         </div>
         
         <form id="wifi-form">
@@ -987,12 +989,8 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
               </div>
             </div>
             <input type="hidden" id="ssid-select" value="">
-            <input type="text" id="ssid" class="form-input" placeholder="Enter your WiFi network name" autocomplete="off" style="display: none;">
-            <div id="ssid-toggle-row" style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
-              <button type="button" id="ssid-toggle-manual" class="btn-link" style="font-size: 12px; color: #60a5fa; background: none; border: none; cursor: pointer; padding: 0;">
-                Enter manually instead
-              </button>
-              <button type="button" id="ssid-refresh" class="btn-link" style="font-size: 12px; color: #60a5fa; background: none; border: none; cursor: pointer; padding: 0; display: none;">
+            <div id="ssid-toggle-row" style="margin-top: 8px;">
+              <button type="button" id="ssid-refresh" class="btn-link" style="font-size: 12px; color: #60a5fa; background: none; border: none; cursor: pointer; padding: 0;">
                 ↻ Refresh list
               </button>
             </div>
@@ -1073,14 +1071,16 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
         </ol>
       </div>
       
-      <button class="btn btn-primary" onclick="window.close()">
+      <button class="btn btn-primary" onclick="window.location.href='/'">
         Done
       </button>
       <button class="btn btn-secondary" id="btn-another">
         Set Up Another Device
       </button>
       
-      <!-- Diagnostics Panel -->
+      ${
+        debug
+          ? `<!-- Diagnostics Panel (debug mode only) -->
       <div class="diag-panel" id="diag-panel">
         <div class="diag-header" id="diag-header">
           <span class="diag-title">
@@ -1130,7 +1130,9 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
             <div class="diag-code" id="diag-extra">—</div>
           </div>
         </div>
-      </div>
+      </div>`
+          : ""
+      }
     </div>
     
     <!-- Error State (shown when detection/connection fails) -->
@@ -1168,8 +1170,7 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       lastError: null,
       previousStep: 1,
       networks: [], // Available WiFi networks from device scan
-      selectedNetwork: null, // Currently selected network object
-      manualSsidMode: false // Whether user is entering SSID manually
+      selectedNetwork: null // Currently selected network object
     };
     
     const API_BASE = 'http://localhost:${port}';
@@ -1288,15 +1289,13 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       const loadingEl = document.getElementById('networks-loading');
       const errorEl = document.getElementById('networks-error');
       const dropdownEl = document.getElementById('ssid-dropdown');
-      const inputEl = document.getElementById('ssid');
       const refreshBtn = document.getElementById('ssid-refresh');
       
-      // Show loading, hide error and inputs
+      // Show loading, hide error and dropdown
       loadingEl.classList.remove('hidden');
       errorEl.classList.add('hidden');
       dropdownEl.style.display = 'none';
       dropdownEl.classList.remove('open');
-      inputEl.style.display = 'none';
       
       try {
         const response = await fetch(API_BASE + '/api/setup/networks');
@@ -1304,7 +1303,6 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
         
         if (data.success && data.networks && data.networks.length > 0) {
           state.networks = data.networks;
-          state.manualSsidMode = false;
           
           // Populate the custom dropdown
           const dropdownEl = document.getElementById('ssid-dropdown');
@@ -1334,43 +1332,32 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
             listEl.appendChild(item);
           }
           
-          // Show dropdown, hide input
+          // Show dropdown
           dropdownEl.style.display = 'block';
-          inputEl.style.display = 'none';
           refreshBtn.style.display = 'inline';
-          document.getElementById('ssid-toggle-manual').textContent = 'Enter manually instead';
           document.getElementById('ssid-dropdown-text').textContent = 'Select a network...';
           
           console.log('[Setup] Found ' + data.networks.length + ' networks');
         } else {
-          // No networks found or error - fall back to manual mode
-          console.log('[Setup] No networks found, switching to manual mode');
+          // No networks found - show error and prompt to retry
+          console.log('[Setup] No networks found');
           state.networks = [];
-          state.manualSsidMode = true;
           
           errorEl.classList.remove('hidden');
           document.getElementById('networks-error-msg').textContent = 
-            data.error || 'No networks found. Enter your network details manually below.';
+            data.error || 'No networks found. Please click "Refresh list" to try again.';
           
-          // Show input, hide dropdown
-          document.getElementById('ssid-dropdown').style.display = 'none';
-          inputEl.style.display = 'block';
           refreshBtn.style.display = 'inline';
-          document.getElementById('ssid-toggle-manual').textContent = 'Try scanning again';
         }
       } catch (error) {
         console.error('[Setup] Error fetching networks:', error);
         state.networks = [];
-        state.manualSsidMode = true;
         
         errorEl.classList.remove('hidden');
         document.getElementById('networks-error-msg').textContent = 
-          'Could not scan for networks. Enter your network details manually below.';
+          'Could not scan for networks. Please click "Refresh list" to try again.';
         
-        document.getElementById('ssid-dropdown').style.display = 'none';
-        inputEl.style.display = 'block';
         refreshBtn.style.display = 'inline';
-        document.getElementById('ssid-toggle-manual').textContent = 'Try scanning again';
       } finally {
         loadingEl.classList.add('hidden');
       }
@@ -1464,39 +1451,6 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       return auth + ' / ' + encrypt;
     }
     
-    // Toggle between dropdown and manual input
-    document.getElementById('ssid-toggle-manual').addEventListener('click', () => {
-      const dropdownEl = document.getElementById('ssid-dropdown');
-      const inputEl = document.getElementById('ssid');
-      const networkInfoEl = document.getElementById('network-info');
-      const toggleBtn = document.getElementById('ssid-toggle-manual');
-      
-      if (state.manualSsidMode) {
-        // Currently in manual mode - try scanning again
-        fetchNetworks();
-      } else {
-        // Switch to manual mode
-        state.manualSsidMode = true;
-        state.selectedNetwork = null;
-        
-        dropdownEl.style.display = 'none';
-        dropdownEl.classList.remove('open');
-        inputEl.style.display = 'block';
-        networkInfoEl.classList.add('hidden');
-        toggleBtn.textContent = 'Select from list';
-        
-        // Reset to default security (WPA2)
-        document.getElementById('security').value = 'WPA2PSK/AES';
-        document.getElementById('channel').value = '0';
-        document.getElementById('ssid-select').value = '';
-        
-        // Show password field
-        const passwordGroup = document.getElementById('password').closest('.form-group');
-        passwordGroup.style.display = 'block';
-        document.getElementById('password').setAttribute('required', '');
-      }
-    });
-    
     // Refresh networks button
     document.getElementById('ssid-refresh').addEventListener('click', () => {
       fetchNetworks();
@@ -1504,13 +1458,8 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
     
     // Step 3: Connect device
     document.getElementById('btn-connect').addEventListener('click', async () => {
-      // Get SSID from either dropdown or manual input
-      let ssid;
-      if (state.manualSsidMode) {
-        ssid = document.getElementById('ssid').value.trim();
-      } else {
-        ssid = document.getElementById('ssid-select').value;
-      }
+      // Get SSID from dropdown
+      const ssid = document.getElementById('ssid-select').value;
       
       const password = document.getElementById('password').value;
       const security = document.getElementById('security').value;
@@ -1565,10 +1514,10 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
           document.getElementById('success-ssid').textContent = ssid;
           goToStep(4);
           
-          // Auto-open diagnostics panel to show results
+          // Auto-open diagnostics panel to show results (if in debug mode)
           const content = document.getElementById('diag-content');
           const toggle = document.getElementById('diag-toggle');
-          if (content && !content.classList.contains('open')) {
+          if (content && toggle && !content.classList.contains('open')) {
             content.classList.add('open');
             toggle.classList.add('open');
           }
@@ -1617,10 +1566,8 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       state.password = '';
       state.networks = [];
       state.selectedNetwork = null;
-      state.manualSsidMode = false;
       
       // Reset form fields
-      document.getElementById('ssid').value = '';
       document.getElementById('ssid-select').value = '';
       document.getElementById('password').value = '';
       document.getElementById('security').value = 'WPA2PSK/AES';
@@ -1652,24 +1599,31 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
     });
     
     // ============================================
-    // Diagnostics Panel
+    // Diagnostics Panel (only in debug mode)
     // ============================================
     
     let lastDiagnostics = null;
+    const diagHeader = document.getElementById('diag-header');
     
-    // Toggle diagnostics panel
-    document.getElementById('diag-header').addEventListener('click', () => {
-      const content = document.getElementById('diag-content');
-      const toggle = document.getElementById('diag-toggle');
-      content.classList.toggle('open');
-      toggle.classList.toggle('open');
-    });
+    // Only set up diagnostics if the panel exists (debug mode)
+    if (diagHeader) {
+      // Toggle diagnostics panel
+      diagHeader.addEventListener('click', () => {
+        const content = document.getElementById('diag-content');
+        const toggle = document.getElementById('diag-toggle');
+        content.classList.toggle('open');
+        toggle.classList.toggle('open');
+      });
+    }
     
-    // Update diagnostics panel with response data
+    // Update diagnostics panel with response data (only in debug mode)
     function updateDiagnostics(data) {
       lastDiagnostics = data;
       
+      // Skip if diagnostic panel doesn't exist (prod mode)
       const statusEl = document.getElementById('diag-status');
+      if (!statusEl) return;
+      
       const responseStatusEl = document.getElementById('diag-response-status');
       const responseBodyEl = document.getElementById('diag-response-body');
       const requestPayloadEl = document.getElementById('diag-request-payload');
@@ -1687,7 +1641,7 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
         const diag = data.diagnostics;
         
         // Response status
-        if (diag.attempts && diag.attempts.length > 0) {
+        if (diag.attempts && diag.attempts.length > 0 && responseStatusEl) {
           const attemptsInfo = diag.attempts.map(a => 
             'Attempt ' + a.attempt + ': ' + (a.status ? 'HTTP ' + a.status : 'Error: ' + a.error)
           ).join('\\n');
@@ -1695,17 +1649,17 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
         }
         
         // Response body
-        if (diag.rawResponse) {
+        if (diag.rawResponse && responseBodyEl) {
           responseBodyEl.textContent = formatXml(diag.rawResponse);
         }
         
         // Request payload
-        if (diag.soapPayload) {
+        if (diag.soapPayload && requestPayloadEl) {
           requestPayloadEl.textContent = formatXml(diag.soapPayload);
         }
         
         // Encrypted password
-        if (diag.encryptedPassword) {
+        if (diag.encryptedPassword && encryptedPwEl) {
           encryptedPwEl.textContent = diag.encryptedPassword;
         }
       }
@@ -1734,72 +1688,83 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
       }
     }
     
-    // Get AP List diagnostic
-    document.getElementById('diag-btn-aplist').addEventListener('click', async () => {
-      const extraEl = document.getElementById('diag-extra');
-      extraEl.textContent = 'Fetching AP list...';
-      
-      try {
-        const response = await fetch(API_BASE + '/api/setup/diag/aplist');
-        const data = await response.json();
-        
-        let output = 'AP List Request:\\n';
-        output += 'Status: ' + (data.success ? 'Success' : 'Failed') + '\\n';
-        output += 'HTTP Status: ' + (data.responseStatus || 'N/A') + '\\n\\n';
-        
-        if (data.responseBody) {
-          output += 'Response:\\n' + formatXml(data.responseBody);
-        } else if (data.error) {
-          output += 'Error: ' + data.error;
-        }
-        
-        extraEl.textContent = output;
-      } catch (error) {
-        extraEl.textContent = 'Error fetching AP list: ' + error.message;
-      }
-    });
+    // Diagnostic buttons (only in debug mode)
+    const diagBtnAplist = document.getElementById('diag-btn-aplist');
+    const diagBtnStatus = document.getElementById('diag-btn-status');
+    const diagBtnCopy = document.getElementById('diag-btn-copy');
     
-    // Get Network Status diagnostic
-    document.getElementById('diag-btn-status').addEventListener('click', async () => {
-      const extraEl = document.getElementById('diag-extra');
-      extraEl.textContent = 'Fetching network status...';
-      
-      try {
-        const response = await fetch(API_BASE + '/api/setup/diag/network-status');
-        const data = await response.json();
+    if (diagBtnAplist) {
+      // Get AP List diagnostic
+      diagBtnAplist.addEventListener('click', async () => {
+        const extraEl = document.getElementById('diag-extra');
+        extraEl.textContent = 'Fetching AP list...';
         
-        let output = 'Network Status Request:\\n';
-        output += 'Status: ' + (data.success ? 'Success' : 'Failed') + '\\n';
-        output += 'HTTP Status: ' + (data.responseStatus || 'N/A') + '\\n\\n';
-        
-        if (data.responseBody) {
-          output += 'Response:\\n' + formatXml(data.responseBody);
-        } else if (data.error) {
-          output += 'Error: ' + data.error;
+        try {
+          const response = await fetch(API_BASE + '/api/setup/diag/aplist');
+          const data = await response.json();
+          
+          let output = 'AP List Request:\\n';
+          output += 'Status: ' + (data.success ? 'Success' : 'Failed') + '\\n';
+          output += 'HTTP Status: ' + (data.responseStatus || 'N/A') + '\\n\\n';
+          
+          if (data.responseBody) {
+            output += 'Response:\\n' + formatXml(data.responseBody);
+          } else if (data.error) {
+            output += 'Error: ' + data.error;
+          }
+          
+          extraEl.textContent = output;
+        } catch (error) {
+          extraEl.textContent = 'Error fetching AP list: ' + error.message;
         }
-        
-        extraEl.textContent = output;
-      } catch (error) {
-        extraEl.textContent = 'Error fetching network status: ' + error.message;
-      }
-    });
+      });
+    }
     
-    // Copy all diagnostics
-    document.getElementById('diag-btn-copy').addEventListener('click', async () => {
-      const output = {
-        timestamp: new Date().toISOString(),
-        device: state.device,
-        ssid: state.ssid,
-        lastResponse: lastDiagnostics
-      };
-      
-      try {
-        await navigator.clipboard.writeText(JSON.stringify(output, null, 2));
-        showToast('Diagnostics copied to clipboard');
-      } catch {
-        showToast('Failed to copy', true);
-      }
-    });
+    if (diagBtnStatus) {
+      // Get Network Status diagnostic
+      diagBtnStatus.addEventListener('click', async () => {
+        const extraEl = document.getElementById('diag-extra');
+        extraEl.textContent = 'Fetching network status...';
+        
+        try {
+          const response = await fetch(API_BASE + '/api/setup/diag/network-status');
+          const data = await response.json();
+          
+          let output = 'Network Status Request:\\n';
+          output += 'Status: ' + (data.success ? 'Success' : 'Failed') + '\\n';
+          output += 'HTTP Status: ' + (data.responseStatus || 'N/A') + '\\n\\n';
+          
+          if (data.responseBody) {
+            output += 'Response:\\n' + formatXml(data.responseBody);
+          } else if (data.error) {
+            output += 'Error: ' + data.error;
+          }
+          
+          extraEl.textContent = output;
+        } catch (error) {
+          extraEl.textContent = 'Error fetching network status: ' + error.message;
+        }
+      });
+    }
+    
+    if (diagBtnCopy) {
+      // Copy all diagnostics
+      diagBtnCopy.addEventListener('click', async () => {
+        const output = {
+          timestamp: new Date().toISOString(),
+          device: state.device,
+          ssid: state.ssid,
+          lastResponse: lastDiagnostics
+        };
+        
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(output, null, 2));
+          showToast('Diagnostics copied to clipboard');
+        } catch {
+          showToast('Failed to copy', true);
+        }
+      });
+    }
   </script>
 </body>
 </html>`;
@@ -1808,9 +1773,9 @@ export function generateSetupPageHtml(config: SetupPageConfig): string {
 /**
  * Creates the setup page route handler.
  */
-export function createSetupRoute(port: number) {
+export function createSetupRoute(port: number, debug = false) {
   return (): Response => {
-    const html = generateSetupPageHtml({ port });
+    const html = generateSetupPageHtml({ port, debug });
     return new Response(html, {
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });

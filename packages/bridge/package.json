@@ -7,7 +7,8 @@
   "main": "src/main.ts",
   "scripts": {
     "dev": "bun --watch src/main.ts",
-    "build": "bun build src/main.ts --compile --outfile=dist/open-wemo",
+    "build": "powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1",
+    "build:console": "bun build src/main.ts --compile --outfile=dist/open-wemo",
     "build:windows": "bun build src/main.ts --compile --target=bun-windows-x64 --outfile=dist/open-wemo-win.exe",
     "build:mac": "bun build src/main.ts --compile --target=bun-darwin-arm64 --outfile=dist/open-wemo-mac",
     "build:mac-intel": "bun build src/main.ts --compile --target=bun-darwin-x64 --outfile=dist/open-wemo-mac-intel",
