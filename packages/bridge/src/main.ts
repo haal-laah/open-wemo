@@ -1,14 +1,7 @@
-/**
- * Open Wemo Bridge - Main Entry Point
- *
- * This is the desktop application that:
- * 1. Runs in the system tray
- * 2. Discovers and controls WeMo devices
- * 3. Serves the REST API and PWA
- */
-
+import { existsSync, unlinkSync } from "node:fs";
 import { platform } from "node:os";
-import { closeDatabase, getDatabase } from "./db";
+import { join } from "node:path";
+import { closeDatabase, getAppDataDir, getDatabase } from "./db";
 import { handleAutoInstall } from "./install";
 import { type ServerInstance, startServer } from "./server";
 import { getSavedAutostartPreference, setAutostart, syncAutostart } from "./tray/autostart";
@@ -363,6 +356,7 @@ Usage: open-wemo [options]
 Options:
   --help, -h              Show this help message
   --reset-first-launch    Reset first-launch flag (triggers setup wizard on next start)
+  --reset-db              Delete database and start fresh (removes all devices and settings)
   --version, -v           Show version information
 `);
     return false;
@@ -384,6 +378,37 @@ Options:
       console.log("[CLI] First-launch flag reset. Setup wizard will show on next start.");
     } catch (error) {
       console.error("[CLI] Failed to reset flag:", error);
+    }
+    return false;
+  }
+
+  // --reset-db
+  if (args.includes("--reset-db")) {
+    console.log("[CLI] Deleting database...");
+    try {
+      const dbPath = join(getAppDataDir(), "open-wemo.db");
+      const walPath = `${dbPath}-wal`;
+      const shmPath = `${dbPath}-shm`;
+
+      // Delete main database file
+      if (existsSync(dbPath)) {
+        unlinkSync(dbPath);
+        console.log(`[CLI] Deleted: ${dbPath}`);
+      }
+      // Delete WAL file if exists
+      if (existsSync(walPath)) {
+        unlinkSync(walPath);
+        console.log(`[CLI] Deleted: ${walPath}`);
+      }
+      // Delete SHM file if exists
+      if (existsSync(shmPath)) {
+        unlinkSync(shmPath);
+        console.log(`[CLI] Deleted: ${shmPath}`);
+      }
+
+      console.log("[CLI] Database reset complete. A fresh database will be created on next start.");
+    } catch (error) {
+      console.error("[CLI] Failed to delete database:", error);
     }
     return false;
   }
