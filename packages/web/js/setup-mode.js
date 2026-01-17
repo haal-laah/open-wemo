@@ -1594,3 +1594,86 @@ export function sendCloseSetupCommand() {
   const payload = buildCloseSetupPayload();
   return sendSetupCommand(payload);
 }
+
+// ============================================
+// Curl Command Generator (Workaround for CORS)
+// ============================================
+
+/**
+ * Generates a curl command for WiFi setup.
+ *
+ * Browser limitations (CORS, no custom headers in sendBeacon) prevent
+ * sending proper SOAP requests. This generates a curl command that
+ * can be run from a terminal on a device connected to the Wemo AP.
+ *
+ * @param {object} params - Setup parameters
+ * @param {string} params.ssid - WiFi network SSID
+ * @param {string} params.password - WiFi password (plaintext)
+ * @param {string} params.mac - Device MAC address
+ * @param {string} params.serial - Device serial number
+ * @param {string} [params.auth="WPA2"] - Auth mode
+ * @param {string} [params.encrypt="AES"] - Encryption type
+ * @param {number} [params.channel=0] - WiFi channel
+ * @param {number} [params.method] - Encryption method override
+ * @param {boolean} [params.addLengths] - Whether to add length bytes
+ * @returns {string} curl command string
+ */
+export function generateCurlCommand({
+  ssid,
+  password,
+  mac,
+  serial,
+  auth = AuthMode.WPA2,
+  encrypt = EncryptType.AES,
+  channel = 0,
+  method,
+  addLengths,
+}) {
+  // Determine encryption method
+  const encMethod = method ?? detectEncryptionMethod(null);
+  const shouldAddLengths = addLengths ?? encMethod === EncryptionMethod.METHOD_3;
+
+  // Encrypt the password
+  const encryptedPassword = encryptWifiPassword(password, mac, serial, encMethod, shouldAddLengths);
+
+  // Build the SOAP payload
+  const payload = buildConnectHomeNetworkPayload({
+    ssid,
+    auth,
+    password: encryptedPassword,
+    encrypt,
+    channel,
+  });
+
+  // Escape single quotes in payload for shell
+  const escapedPayload = payload.replace(/'/g, "'\\''");
+
+  // Build curl command
+  const curlCmd = [
+    "curl -X POST",
+    `'${WIFI_SETUP_ACTION_URL}'`,
+    "-H 'Content-Type: text/xml'",
+    `-H 'SOAPACTION: "${WIFI_SETUP_SERVICE_TYPE}#ConnectHomeNetwork"'`,
+    `-d '${escapedPayload}'`,
+  ].join(" \\\n  ");
+
+  return curlCmd;
+}
+
+/**
+ * Generates a curl command for CloseSetup.
+ *
+ * @returns {string} curl command string
+ */
+export function generateCloseSetupCurlCommand() {
+  const payload = buildCloseSetupPayload();
+  const escapedPayload = payload.replace(/'/g, "'\\''");
+
+  return [
+    "curl -X POST",
+    `'${WIFI_SETUP_ACTION_URL}'`,
+    "-H 'Content-Type: text/xml'",
+    `-H 'SOAPACTION: "${WIFI_SETUP_SERVICE_TYPE}#CloseSetup"'`,
+    `-d '${escapedPayload}'`,
+  ].join(" \\\n  ");
+}

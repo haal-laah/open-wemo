@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" href="icons/icon.svg">
   
   <!-- Styles -->
-  <link rel="stylesheet" href="css/style.css?v=22">
+  <link rel="stylesheet" href="css/style.css?v=23">
 </head>
 <body>
   <a href="#app" class="skip-link">Skip to main content</a>
@@ -329,7 +329,7 @@
           </div>
           <div class="settings-about-row">
             <span class="settings-about-label">App Build</span>
-            <span class="settings-about-value" id="app-build">22</span>
+            <span class="settings-about-value" id="app-build">23</span>
           </div>
           <div class="settings-about-row">
             <span class="settings-about-label">Bridge Status</span>
@@ -367,33 +367,49 @@
         </button>
       </div>
       <div class="modal-body">
-        <p class="ios-install-intro">To set up a new or factory-reset WeMo device:</p>
+        <p class="ios-install-intro">Device setup must be done from a computer running the Open Wemo bridge.</p>
+        <p class="ios-install-intro" style="font-size: var(--font-size-sm); color: var(--color-text-muted); margin-top: var(--spacing-sm);">
+          Due to browser security restrictions, your phone cannot communicate directly with WeMo devices during setup.
+        </p>
         
         <ol class="ios-install-steps">
           <li class="ios-install-step">
             <div class="ios-install-step-icon">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
               </svg>
             </div>
             <div class="ios-install-step-content">
-              <div class="ios-install-step-title">Power on the WeMo device</div>
-              <div class="ios-install-step-text">Make sure the device is blinking (indicating setup mode)</div>
+              <div class="ios-install-step-title">Go to your computer</div>
+              <div class="ios-install-step-text">The computer where Open Wemo bridge is installed</div>
+            </div>
+          </li>
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Find the Open Wemo icon</div>
+              <div class="ios-install-step-text">Look in your system tray (Windows) or menu bar (macOS)</div>
             </div>
           </li>
           <li class="ios-install-step">
             <div class="ios-install-step-icon">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
-                <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
                 <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
                 <line x1="12" y1="20" x2="12.01" y2="20"/>
               </svg>
             </div>
             <div class="ios-install-step-content">
-              <div class="ios-install-step-title">Connect to the WeMo WiFi</div>
-              <div class="ios-install-step-text">Open your phone's WiFi settings and connect to the network named <strong>"Wemo.XXX.XXX"</strong></div>
+              <div class="ios-install-step-title">Select "Setup New Device"</div>
+              <div class="ios-install-step-text">Right-click the icon and choose <strong>"Setup New Device"</strong> from the menu</div>
             </div>
           </li>
           <li class="ios-install-step">
@@ -403,15 +419,14 @@
               </svg>
             </div>
             <div class="ios-install-step-content">
-              <div class="ios-install-step-title">Return to this app</div>
-              <div class="ios-install-step-text">Once connected, come back here and tap "I'm Connected" below</div>
+              <div class="ios-install-step-title">Follow the on-screen instructions</div>
+              <div class="ios-install-step-text">The setup wizard will guide you through connecting your WeMo device to WiFi</div>
             </div>
           </li>
         </ol>
       </div>
       <div class="modal-footer">
-        <button class="btn" id="setup-instructions-cancel">Cancel</button>
-        <button class="btn btn-primary" id="setup-instructions-continue">I'm Connected</button>
+        <button class="btn btn-primary" id="setup-instructions-cancel">Got It</button>
       </div>
     </div>
   </div>
@@ -450,6 +465,6 @@
   <script src="js/vendor/crypto-js.min.js"></script>
   
   <!-- Scripts -->
-  <script type="module" src="js/app.js?v=22"></script>
+  <script type="module" src="js/app.js?v=23"></script>
 </body>
 </html>

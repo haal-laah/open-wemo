@@ -3,20 +3,10 @@
  */
 
 import { api } from "./api.js";
-import {
-  AuthMode,
-  EncryptType,
-  EncryptionMethod,
-  NetworkMode,
-  TEST_NAMES,
-  WEMO_SETUP_URL,
-  createDeviceInfoObjectTag,
-  detectNetworkMode,
-  formatTestResults,
-  parseDeviceInfoFromText,
-  runAllTests,
-  sendWifiSetupCommand,
-} from "./setup-mode.js";
+// Note: PWA-based setup mode has been disabled due to browser CORS limitations.
+// Device setup must now be done from the bridge (tray menu → "Setup New Device").
+// The following imports are kept for network detection only.
+import { NetworkMode, detectNetworkMode } from "./setup-mode.js";
 
 // ============================================
 // State Management
@@ -29,24 +19,8 @@ const state = {
   isOffline: false,
   lastUpdated: null,
   networkMode: NetworkMode.NORMAL,
-  testResults: [],
-  testsRunning: false,
-  // Device setup state
-  deviceInfo: {
-    serial: null,
-    mac: null,
-    raw: {},
-    pastedText: "",
-  },
-  // WiFi setup form state
-  wifiSetup: {
-    ssid: "",
-    password: "",
-    securityType: "WPA2/AES", // Default to most common
-    sending: false,
-    sent: false,
-    error: null,
-  },
+  // Note: testResults, testsRunning, deviceInfo, and wifiSetup state removed
+  // PWA-based setup mode has been deprecated due to CORS limitations
   settings: {
     refreshInterval: 30000,
     theme: "dark",
@@ -101,7 +75,6 @@ const $qrModalUrl = document.getElementById("qr-modal-url");
 const $setupInstructionsModal = document.getElementById("setup-instructions-modal");
 const $setupInstructionsClose = document.getElementById("setup-instructions-close");
 const $setupInstructionsCancel = document.getElementById("setup-instructions-cancel");
-const $setupInstructionsContinue = document.getElementById("setup-instructions-continue");
 
 // ============================================
 // Service Worker Registration
@@ -131,13 +104,6 @@ async function registerServiceWorker() {
 // ============================================
 // PWA Install Detection & Handling
 // ============================================
-
-/**
- * Detects if the current device is iOS.
- */
-function isIOSDevice() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-}
 
 /**
  * Checks if the app was previously installed (persisted in localStorage).
@@ -522,12 +488,8 @@ function renderDevices() {
   // Hide initial loading
   $initialLoading.classList.add("hidden");
 
-  // Check for setup mode first
-  if (state.networkMode === NetworkMode.SETUP_MODE) {
-    $app.innerHTML = renderSetupMode();
-    attachSetupModeListeners();
-    return;
-  }
+  // Note: Setup mode rendering removed - PWA setup doesn't work due to CORS
+  // If user is on Wemo AP, they'll see the bridge-required modal via handleDiscover()
 
   // If offline with no cached data, show offline state
   if (state.isOffline && state.devices.length === 0) {
@@ -775,844 +737,27 @@ function renderOfflineBanner() {
 }
 
 // ============================================
-// Setup Mode Rendering
+// Setup Mode (DEPRECATED)
 // ============================================
+// Note: PWA-based device setup has been disabled due to browser CORS limitations.
+// The browser cannot send the required SOAPACTION header needed for Wemo SOAP commands.
+// Device setup must now be done from the bridge application:
+//   1. Right-click the tray icon
+//   2. Select "Setup New Device"
+//   3. Follow the on-screen wizard
+//
+// The functions below are kept minimal - only enterSetupMode is used to show
+// the bridge-required message when a user accidentally connects to a Wemo AP.
 
 /**
- * Renders the setup mode UI for configuring new Wemo devices.
- */
-function renderSetupMode() {
-  const deviceInfoPanelHtml = renderDeviceInfoPanel();
-  const parsedInfoHtml = renderParsedDeviceInfo();
-  const wifiFormHtml = renderWifiCredentialsForm();
-
-  return `
-    <div class="setup-mode">
-      <div class="setup-mode-header">
-        <div class="setup-mode-icon">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
-            <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
-            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
-            <line x1="12" y1="20" x2="12.01" y2="20"/>
-          </svg>
-        </div>
-        <h1 class="setup-mode-title">Device Setup Mode</h1>
-        <p class="setup-mode-subtitle">
-          Connected to Wemo device access point. Follow the steps below to configure your device.
-        </p>
-        <div class="setup-mode-target">${WEMO_SETUP_URL}</div>
-      </div>
-
-      ${deviceInfoPanelHtml}
-
-      <div class="device-info-paste-section">
-        <label class="device-info-paste-label" for="device-info-paste">
-          Step 2: Paste the copied text here
-        </label>
-        <textarea 
-          id="device-info-paste" 
-          class="device-info-paste-area" 
-          placeholder="Select all the text shown above, copy it, then paste here..."
-          aria-describedby="paste-instructions"
-        >${escapeHtml(state.deviceInfo.pastedText)}</textarea>
-        <span id="paste-instructions" class="sr-only">
-          After copying the device information from the panel above, paste it here to extract the serial number and MAC address.
-        </span>
-      </div>
-
-      ${parsedInfoHtml}
-
-      ${wifiFormHtml}
-
-      <div class="setup-mode-back">
-        <button class="btn" id="back-to-normal-btn">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12"/>
-            <polyline points="12 19 5 12 12 5"/>
-          </svg>
-          Back to Device List
-        </button>
-      </div>
-    </div>
-  `;
-}
-
-/**
- * Renders the device info panel with object tag for setup.xml.
- */
-function renderDeviceInfoPanel() {
-  return `
-    <div class="device-info-panel">
-      <h2 class="device-info-panel-title">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-        </svg>
-        Step 1: Copy Device Information
-      </h2>
-      <div class="device-info-instructions">
-        <p>The device information is displayed below. Due to browser security, we cannot read it directly.</p>
-        <ol>
-          <li><strong>Long-press</strong> (mobile) or <strong>triple-click</strong> (desktop) to select all text in the box below</li>
-          <li><strong>Copy</strong> the selected text</li>
-          <li><strong>Paste</strong> it into the text area in Step 2</li>
-        </ol>
-      </div>
-      <div class="device-info-object-container" id="device-info-object-container">
-        <span class="device-info-object-label">Device Info (setup.xml)</span>
-        <!-- Object tag will be inserted here by JS -->
-      </div>
-    </div>
-  `;
-}
-
-/**
- * Renders the parsed device info display.
- */
-function renderParsedDeviceInfo() {
-  const { serial, mac, raw } = state.deviceInfo;
-
-  // If nothing parsed yet
-  if (!serial && !mac && !state.deviceInfo.pastedText) {
-    return "";
-  }
-
-  // If text was pasted but nothing found
-  if (state.deviceInfo.pastedText && !serial && !mac) {
-    return `
-      <div class="device-info-parsed is-error">
-        <div class="device-info-parsed-title is-error">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="15" y1="9" x2="9" y2="15"/>
-            <line x1="9" y1="9" x2="15" y2="15"/>
-          </svg>
-          Could not find device info
-        </div>
-        <p style="font-size: var(--font-size-sm); color: var(--color-text-muted); margin-top: var(--spacing-sm);">
-          Make sure you copied all the text from the device info panel above. 
-          The text should contain SerialNumber and MacAddress values.
-        </p>
-      </div>
-    `;
-  }
-
-  // Show parsed results
-  const friendlyName = raw.friendlyName || "Unknown";
-
-  return `
-    <div class="device-info-parsed is-success">
-      <div class="device-info-parsed-title is-success">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-        Device Information Found
-      </div>
-      ${
-        serial
-          ? `
-        <div class="device-info-parsed-row">
-          <span class="device-info-parsed-label">Serial Number</span>
-          <span class="device-info-parsed-value">${escapeHtml(serial)}</span>
-        </div>
-      `
-          : ""
-      }
-      ${
-        mac
-          ? `
-        <div class="device-info-parsed-row">
-          <span class="device-info-parsed-label">MAC Address</span>
-          <span class="device-info-parsed-value">${escapeHtml(mac)}</span>
-        </div>
-      `
-          : ""
-      }
-      ${
-        raw.friendlyName
-          ? `
-        <div class="device-info-parsed-row">
-          <span class="device-info-parsed-label">Device Name</span>
-          <span class="device-info-parsed-value">${escapeHtml(friendlyName)}</span>
-        </div>
-      `
-          : ""
-      }
-      ${
-        raw.modelName
-          ? `
-        <div class="device-info-parsed-row">
-          <span class="device-info-parsed-label">Model</span>
-          <span class="device-info-parsed-value">${escapeHtml(raw.modelName)}</span>
-        </div>
-      `
-          : ""
-      }
-    </div>
-  `;
-}
-
-/**
- * Renders the WiFi credentials form.
- * Only shows when device info (serial and MAC) has been parsed.
- */
-function renderWifiCredentialsForm() {
-  const { serial, mac } = state.deviceInfo;
-  const { ssid, password, securityType, sending, sent, error } = state.wifiSetup;
-
-  // Don't show form until we have device info
-  if (!serial || !mac) {
-    return "";
-  }
-
-  // If setup was sent successfully, show success message
-  if (sent) {
-    return `
-      <div class="wifi-setup-success">
-        <div class="wifi-setup-success-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>
-        </div>
-        <h3 class="wifi-setup-success-title">Setup Command Sent!</h3>
-        <p class="wifi-setup-success-text">
-          The device is now attempting to connect to <strong>${escapeHtml(ssid)}</strong>.
-        </p>
-        <div class="wifi-setup-next-steps">
-          <h4>Next Steps:</h4>
-          <ol>
-            <li>Wait about <strong>30 seconds</strong> for the device to connect</li>
-            <li>Switch your phone back to your <strong>home WiFi</strong> network</li>
-            <li>Return to this app and tap <strong>"Discover Devices"</strong></li>
-          </ol>
-        </div>
-        <div class="wifi-setup-actions">
-          <button class="btn btn-primary" id="wifi-setup-done-btn">
-            Got It - Back to Home
-          </button>
-        </div>
-      </div>
-    `;
-  }
-
-  return `
-    <div class="wifi-setup-form-panel">
-      <h2 class="wifi-setup-form-title">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
-          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
-          <line x1="12" y1="20" x2="12.01" y2="20"/>
-        </svg>
-        Step 3: Enter Your WiFi Credentials
-      </h2>
-      
-      ${error ? `<div class="wifi-setup-error">${escapeHtml(error)}</div>` : ""}
-
-      <form id="wifi-setup-form" class="wifi-setup-form">
-        <div class="wifi-setup-disclaimer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="16" x2="12" y2="12"/>
-            <line x1="12" y1="8" x2="12.01" y2="8"/>
-          </svg>
-          <span>Enter your WiFi credentials <strong>exactly</strong> as they appear, including uppercase letters, numbers, and spaces.</span>
-        </div>
-
-        <div class="wifi-setup-field">
-          <label for="wifi-ssid" class="wifi-setup-label">WiFi Network Name (SSID)</label>
-          <input 
-            type="text" 
-            id="wifi-ssid" 
-            class="wifi-setup-input"
-            value="${escapeHtml(ssid)}"
-            placeholder="Enter your WiFi network name exactly"
-            required
-            autocomplete="off"
-            ${sending ? "disabled" : ""}
-          />
-          <span class="wifi-setup-hint">Case-sensitive - must match exactly</span>
-        </div>
-
-        <div class="wifi-setup-field">
-          <label for="wifi-password" class="wifi-setup-label">WiFi Password</label>
-          <div class="wifi-setup-password-wrapper">
-            <input 
-              type="password" 
-              id="wifi-password" 
-              class="wifi-setup-input wifi-setup-password-input"
-              value="${escapeHtml(password)}"
-              placeholder="Enter your WiFi password"
-              minlength="8"
-              required
-              autocomplete="off"
-              ${sending ? "disabled" : ""}
-            />
-            <button 
-              type="button" 
-              class="wifi-setup-password-toggle" 
-              id="wifi-password-toggle"
-              aria-label="Show password"
-              ${sending ? "disabled" : ""}
-            >
-              <svg class="icon-eye" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-              <svg class="icon-eye-off hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                <line x1="1" y1="1" x2="23" y2="23"/>
-              </svg>
-            </button>
-          </div>
-          <span class="wifi-setup-hint">Password must be at least 8 characters</span>
-        </div>
-
-        <div class="wifi-setup-field">
-          <label for="wifi-security" class="wifi-setup-label">Security Type</label>
-          <select id="wifi-security" class="wifi-setup-select" ${sending ? "disabled" : ""}>
-            <option value="WPA2/AES" ${securityType === "WPA2/AES" ? "selected" : ""}>WPA2 / AES (Recommended)</option>
-            <option value="WPA/TKIP" ${securityType === "WPA/TKIP" ? "selected" : ""}>WPA / TKIP</option>
-            <option value="WPA/AES" ${securityType === "WPA/AES" ? "selected" : ""}>WPA / AES</option>
-            <option value="OPEN/NONE" ${securityType === "OPEN/NONE" ? "selected" : ""}>Open (No Password)</option>
-          </select>
-        </div>
-
-        <div class="wifi-setup-device-info">
-          <span class="wifi-setup-device-info-label">Configuring device:</span>
-          <span class="wifi-setup-device-info-value">${escapeHtml(serial)}</span>
-        </div>
-
-        <div class="wifi-setup-actions">
-          <button type="submit" class="btn btn-primary wifi-setup-submit" ${sending ? "disabled" : ""}>
-            ${sending ? '<span class="spinner spinner-sm"></span> Sending...' : "Connect Device to WiFi"}
-          </button>
-        </div>
-      </form>
-    </div>
-  `;
-}
-
-/**
- * Renders the test results list.
- */
-function renderTestResults() {
-  if (state.testResults.length === 0 && !state.testsRunning) {
-    return `
-      <div class="test-result-item">
-        <div class="test-result-icon is-pending">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-        </div>
-        <div class="test-result-content">
-          <div class="test-result-name">Tests not run yet</div>
-          <div class="test-result-message">Click "Run Tests Again" to start connectivity tests</div>
-        </div>
-      </div>
-    `;
-  }
-
-  // Define all tests in order (using shared constants)
-  const allTests = [
-    { name: TEST_NAMES.NO_CORS_GET },
-    { name: TEST_NAMES.CORS_GET },
-    { name: TEST_NAMES.FETCH_SCRIPT_TAG },
-    { name: TEST_NAMES.FETCH_OBJECT_TAG },
-    { name: TEST_NAMES.JSONP_CALLBACK },
-    { name: TEST_NAMES.SOAP_POST },
-    { name: TEST_NAMES.SOAP_TEXT_PLAIN },
-    { name: TEST_NAMES.SOAP_FORM_URLENCODED },
-    { name: TEST_NAMES.SEND_BEACON },
-    { name: TEST_NAMES.WEBSOCKET_PROBE },
-    { name: TEST_NAMES.WIFI_SETUP },
-  ];
-
-  return allTests
-    .map((test) => {
-      const result = state.testResults.find((r) => r.name === test.name);
-
-      if (!result) {
-        // Test hasn't run yet
-        const isPending = state.testsRunning;
-        return `
-          <div class="test-result-item ${isPending ? "is-running" : ""}">
-            <div class="test-result-icon ${isPending ? "is-running" : "is-pending"}">
-              ${
-                isPending
-                  ? '<span class="spinner spinner-sm"></span>'
-                  : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"/>
-                </svg>`
-              }
-            </div>
-            <div class="test-result-content">
-              <div class="test-result-name">${escapeHtml(test.name)}</div>
-              <div class="test-result-message">${isPending ? "Waiting..." : "Pending"}</div>
-            </div>
-          </div>
-        `;
-      }
-
-      const statusClass = result.success ? "is-pass" : "is-fail";
-      const iconSvg = result.success
-        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>`
-        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>`;
-
-      const detailsHtml = result.details
-        ? `<div class="test-result-details">${escapeHtml(result.details)}</div>`
-        : "";
-
-      const durationHtml = result.duration
-        ? `<span class="test-result-duration">${result.duration}ms</span>`
-        : "";
-
-      return `
-        <div class="test-result-item ${statusClass}">
-          <div class="test-result-icon ${statusClass}">
-            ${iconSvg}
-          </div>
-          <div class="test-result-content">
-            <div class="test-result-name">${escapeHtml(result.name)}</div>
-            <div class="test-result-message">${escapeHtml(result.message)}</div>
-            ${detailsHtml}
-          </div>
-          ${durationHtml}
-        </div>
-      `;
-    })
-    .join("");
-}
-
-/**
- * Renders the test summary.
- * @deprecated Kept for potential future CORS test UI restoration
- */
-// biome-ignore lint/correctness/noUnusedVariables: Preserved for potential debug UI
-function renderTestSummary() {
-  if (state.testResults.length === 0) {
-    return "";
-  }
-
-  const passCount = state.testResults.filter((r) => r.success).length;
-  const failCount = state.testResults.filter((r) => !r.success).length;
-
-  return `
-    <div class="test-summary">
-      <div class="test-summary-stat">
-        <div class="test-summary-value is-pass">${passCount}</div>
-        <div class="test-summary-label">Passed</div>
-      </div>
-      <div class="test-summary-stat">
-        <div class="test-summary-value is-fail">${failCount}</div>
-        <div class="test-summary-label">Failed</div>
-      </div>
-    </div>
-  `;
-}
-
-/**
- * Attaches event listeners for setup mode UI.
- */
-function attachSetupModeListeners() {
-  const backBtn = document.getElementById("back-to-normal-btn");
-  const pasteArea = document.getElementById("device-info-paste");
-  const objectContainer = document.getElementById("device-info-object-container");
-  const wifiForm = document.getElementById("wifi-setup-form");
-  const wifiDoneBtn = document.getElementById("wifi-setup-done-btn");
-
-  if (backBtn) {
-    backBtn.addEventListener("click", handleBackToNormal);
-  }
-
-  // Set up paste textarea listener
-  if (pasteArea) {
-    pasteArea.addEventListener("input", handleDeviceInfoPaste);
-    // Also handle paste event for immediate processing
-    pasteArea.addEventListener("paste", (e) => {
-      // Let the default paste happen, then process
-      setTimeout(() => handleDeviceInfoPaste(e), 0);
-    });
-  }
-
-  // Insert the object tag for displaying setup.xml
-  if (objectContainer) {
-    const objectTag = createDeviceInfoObjectTag();
-    objectContainer.appendChild(objectTag);
-
-    // Handle object load error
-    objectTag.onerror = () => {
-      console.warn("[SetupMode] Failed to load device info via object tag");
-      objectContainer.innerHTML = `
-        <div style="padding: 20px; text-align: center; color: var(--color-text-muted);">
-          <p>Unable to load device information.</p>
-          <p style="font-size: var(--font-size-sm);">Make sure you're connected to the Wemo device's WiFi network.</p>
-        </div>
-      `;
-    };
-  }
-
-  // WiFi credentials form submission
-  if (wifiForm) {
-    wifiForm.addEventListener("submit", handleWifiFormSubmit);
-
-    // Track form field changes
-    const ssidInput = document.getElementById("wifi-ssid");
-    const passwordInput = document.getElementById("wifi-password");
-    const securitySelect = document.getElementById("wifi-security");
-
-    if (ssidInput) {
-      ssidInput.addEventListener("input", (e) => {
-        state.wifiSetup.ssid = e.target.value;
-      });
-    }
-    if (passwordInput) {
-      passwordInput.addEventListener("input", (e) => {
-        state.wifiSetup.password = e.target.value;
-      });
-    }
-    if (securitySelect) {
-      securitySelect.addEventListener("change", (e) => {
-        state.wifiSetup.securityType = e.target.value;
-      });
-    }
-  }
-
-  // "Done" button after successful setup
-  if (wifiDoneBtn) {
-    wifiDoneBtn.addEventListener("click", handleWifiSetupDone);
-  }
-}
-
-/**
- * Handles paste/input in the device info textarea.
- */
-function handleDeviceInfoPaste(event) {
-  const textarea = event.target;
-  const text = textarea.value;
-
-  // Update state
-  state.deviceInfo.pastedText = text;
-
-  // Parse the text
-  const parsed = parseDeviceInfoFromText(text);
-  state.deviceInfo.serial = parsed.serial;
-  state.deviceInfo.mac = parsed.mac;
-  state.deviceInfo.raw = parsed.raw;
-
-  // Update the parsed info display
-  const parsedContainer = document.querySelector(".device-info-parsed");
-  if (parsedContainer) {
-    parsedContainer.outerHTML = renderParsedDeviceInfo();
-  } else {
-    // Insert after paste section if not present
-    const pasteSection = document.querySelector(".device-info-paste-section");
-    if (pasteSection) {
-      pasteSection.insertAdjacentHTML("afterend", renderParsedDeviceInfo());
-    }
-  }
-
-  // Announce to screen readers
-  if (parsed.serial || parsed.mac) {
-    announceToScreenReader(
-      `Found device info: Serial ${parsed.serial || "not found"}, MAC ${parsed.mac || "not found"}`
-    );
-  }
-
-  // Show WiFi form if device info found (re-render to add the form)
-  if (parsed.serial && parsed.mac) {
-    const wifiFormContainer = document.querySelector(".wifi-setup-form-panel");
-    if (!wifiFormContainer) {
-      // Insert WiFi form after parsed info
-      const parsedInfo = document.querySelector(".device-info-parsed");
-      if (parsedInfo) {
-        parsedInfo.insertAdjacentHTML("afterend", renderWifiCredentialsForm());
-        // Re-attach listeners for the new form
-        attachWifiFormListeners();
-
-        // Smooth scroll to show the WiFi form
-        setTimeout(() => {
-          const wifiForm = document.querySelector(".wifi-setup-form-panel");
-          if (wifiForm) {
-            wifiForm.scrollIntoView({ behavior: "smooth", block: "start" });
-          }
-        }, 100);
-      }
-    }
-  }
-}
-
-/**
- * Attaches event listeners specifically for the WiFi form.
- * Called after form is dynamically inserted.
- */
-function attachWifiFormListeners() {
-  const wifiForm = document.getElementById("wifi-setup-form");
-  const ssidInput = document.getElementById("wifi-ssid");
-  const passwordInput = document.getElementById("wifi-password");
-  const passwordToggle = document.getElementById("wifi-password-toggle");
-  const securitySelect = document.getElementById("wifi-security");
-
-  if (wifiForm) {
-    wifiForm.addEventListener("submit", handleWifiFormSubmit);
-  }
-  if (ssidInput) {
-    ssidInput.addEventListener("input", (e) => {
-      state.wifiSetup.ssid = e.target.value;
-    });
-  }
-  if (passwordInput) {
-    passwordInput.addEventListener("input", (e) => {
-      state.wifiSetup.password = e.target.value;
-    });
-  }
-  if (passwordToggle && passwordInput) {
-    passwordToggle.addEventListener("click", () => {
-      const isPassword = passwordInput.type === "password";
-      passwordInput.type = isPassword ? "text" : "password";
-
-      // Toggle icons
-      const eyeIcon = passwordToggle.querySelector(".icon-eye");
-      const eyeOffIcon = passwordToggle.querySelector(".icon-eye-off");
-      if (eyeIcon && eyeOffIcon) {
-        eyeIcon.classList.toggle("hidden", !isPassword);
-        eyeOffIcon.classList.toggle("hidden", isPassword);
-      }
-
-      // Update aria-label
-      passwordToggle.setAttribute("aria-label", isPassword ? "Hide password" : "Show password");
-    });
-  }
-  if (securitySelect) {
-    securitySelect.addEventListener("change", (e) => {
-      state.wifiSetup.securityType = e.target.value;
-    });
-  }
-}
-
-/**
- * Handles WiFi credentials form submission.
- */
-async function handleWifiFormSubmit(event) {
-  event.preventDefault();
-
-  const { ssid, password, securityType } = state.wifiSetup;
-  const { serial, mac } = state.deviceInfo;
-
-  // Validate
-  if (!ssid.trim()) {
-    state.wifiSetup.error = "Please enter your WiFi network name";
-    updateWifiFormUI();
-    return;
-  }
-
-  if (securityType !== "OPEN/NONE" && password.length < 8) {
-    state.wifiSetup.error = "Password must be at least 8 characters";
-    updateWifiFormUI();
-    return;
-  }
-
-  // Parse security type
-  const [auth, encrypt] = securityType.split("/");
-  const authMode = auth === "OPEN" ? AuthMode.OPEN : auth === "WPA" ? AuthMode.WPA : AuthMode.WPA2;
-  const encryptType =
-    encrypt === "NONE" ? EncryptType.NONE : encrypt === "TKIP" ? EncryptType.TKIP : EncryptType.AES;
-
-  // Clear error and set sending state
-  state.wifiSetup.error = null;
-  state.wifiSetup.sending = true;
-  updateWifiFormUI();
-
-  console.log("[App] Sending WiFi setup command...", {
-    ssid,
-    auth: authMode,
-    encrypt: encryptType,
-  });
-
-  // Send the setup command
-  const result = await sendWifiSetupCommand({
-    ssid: ssid.trim(),
-    password,
-    mac,
-    serial,
-    auth: authMode,
-    encrypt: encryptType,
-    channel: 0, // Auto
-    // Use method 3 with lengths for devices with binaryOption=1 (common for newer devices)
-    method: EncryptionMethod.METHOD_3,
-    addLengths: true,
-  });
-
-  state.wifiSetup.sending = false;
-
-  if (result.success) {
-    state.wifiSetup.sent = true;
-    showToast("Setup command sent!", "success");
-    announceToScreenReader(
-      "WiFi setup command sent successfully. Follow the next steps to complete setup."
-    );
-  } else {
-    state.wifiSetup.error = result.message;
-    showToast(result.message, "error");
-  }
-
-  updateWifiFormUI();
-}
-
-/**
- * Updates the WiFi form UI without full re-render.
- */
-function updateWifiFormUI() {
-  const formPanel = document.querySelector(".wifi-setup-form-panel");
-
-  if (state.wifiSetup.sent) {
-    // Replace form with success message
-    if (formPanel) {
-      formPanel.outerHTML = renderWifiCredentialsForm();
-      // Attach done button listener
-      const doneBtn = document.getElementById("wifi-setup-done-btn");
-      if (doneBtn) {
-        doneBtn.addEventListener("click", handleWifiSetupDone);
-      }
-    }
-  } else if (formPanel) {
-    // Update error display
-    const errorDiv = formPanel.querySelector(".wifi-setup-error");
-    if (state.wifiSetup.error) {
-      if (errorDiv) {
-        errorDiv.textContent = state.wifiSetup.error;
-      } else {
-        const title = formPanel.querySelector(".wifi-setup-form-title");
-        if (title) {
-          title.insertAdjacentHTML(
-            "afterend",
-            `<div class="wifi-setup-error">${escapeHtml(state.wifiSetup.error)}</div>`
-          );
-        }
-      }
-    } else if (errorDiv) {
-      errorDiv.remove();
-    }
-
-    // Update button state
-    const submitBtn = formPanel.querySelector(".wifi-setup-submit");
-    if (submitBtn) {
-      submitBtn.disabled = state.wifiSetup.sending;
-      submitBtn.innerHTML = state.wifiSetup.sending
-        ? '<span class="spinner spinner-sm"></span> Sending...'
-        : "Connect Device to WiFi";
-    }
-
-    // Update input states
-    const inputs = formPanel.querySelectorAll("input, select");
-    for (const input of inputs) {
-      input.disabled = state.wifiSetup.sending;
-    }
-  }
-}
-
-/**
- * Handles the "Done" button after successful WiFi setup.
- */
-function handleWifiSetupDone() {
-  // Reset setup state
-  state.wifiSetup = {
-    ssid: "",
-    password: "",
-    securityType: "WPA2/AES",
-    sending: false,
-    sent: false,
-    error: null,
-  };
-  state.deviceInfo = {
-    serial: null,
-    mac: null,
-    raw: {},
-    pastedText: "",
-  };
-
-  // Go back to normal mode
-  handleBackToNormal();
-}
-
-/**
- * Runs the CORS connectivity tests.
- */
-async function handleRunTests() {
-  // Guard against double-click race condition
-  if (state.testsRunning) return;
-
-  state.testsRunning = true;
-  state.testResults = [];
-  renderDevices();
-
-  try {
-    for await (const result of runAllTests()) {
-      state.testResults.push(result);
-      // Update UI after each test
-      const listEl = document.getElementById("test-results-list");
-      if (listEl) {
-        listEl.innerHTML = renderTestResults();
-      }
-      // Announce result to screen readers
-      const status = result.success ? "passed" : "failed";
-      announceToScreenReader(`Test ${result.name} ${status}`);
-    }
-  } catch (error) {
-    console.error("[App] Test error:", error);
-    showToast(`Test error: ${error.message}`, "error");
-  } finally {
-    state.testsRunning = false;
-    renderDevices();
-  }
-}
-
-/**
- * Copies test results to clipboard.
- * @deprecated Kept for potential future CORS test UI restoration
- */
-// biome-ignore lint/correctness/noUnusedVariables: Preserved for potential debug UI
-async function handleCopyResults() {
-  try {
-    const text = formatTestResults(state.testResults);
-    await navigator.clipboard.writeText(text);
-    showToast("Results copied to clipboard", "success");
-  } catch (error) {
-    console.error("[App] Copy failed:", error);
-    showToast("Failed to copy results", "error");
-  }
-}
-
-/**
- * Returns to normal mode (device list).
- */
-function handleBackToNormal() {
-  state.networkMode = NetworkMode.NORMAL;
-  state.testResults = [];
-  state.testsRunning = false;
-  loadDevices();
-}
-
-/**
- * Enters setup mode manually (for testing or when Add Device detects Wemo AP).
+ * Shows the bridge-required message when user is on Wemo AP.
+ * Previously this entered a PWA-based setup mode, but browser CORS restrictions
+ * prevent proper SOAP communication, so setup must be done from the bridge.
+ * @deprecated PWA setup mode removed - use bridge "Setup New Device" menu instead
  */
 function enterSetupMode() {
-  state.networkMode = NetworkMode.SETUP_MODE;
-  state.testResults = [];
-  state.testsRunning = false;
-  state.loading = false;
-  renderDevices();
-  // Auto-start tests
-  handleRunTests();
+  // Show the bridge-required instructions modal instead of entering setup mode
+  showSetupInstructionsModal();
 }
 
 // ============================================
@@ -2017,9 +1162,10 @@ async function handleDiscover() {
   const networkMode = await detectNetworkMode();
 
   if (networkMode === NetworkMode.SETUP_MODE) {
-    // User is connected to Wemo AP - enter setup mode
-    showToast("Detected Wemo device AP - entering setup mode", "info");
-    enterSetupMode();
+    // User is connected to Wemo AP - show bridge-required message
+    // PWA cannot do setup due to browser CORS restrictions
+    showToast("Connected to WeMo AP - setup must be done from the bridge", "info");
+    showSetupInstructionsModal();
     return;
   }
 
@@ -2027,18 +1173,18 @@ async function handleDiscover() {
   openDiscoveryModal();
 }
 
-/**
- * Handles "Set Up New Device" button click.
- * Shows instructions for connecting to Wemo AP and enters setup mode.
- */
-function handleSetupNewDevice() {
-  // Show instructions modal for connecting to Wemo AP
-  showSetupInstructionsModal();
-}
-
 // ============================================
 // Setup Instructions Modal
 // ============================================
+
+/**
+ * Handles "Set Up New Device" button click.
+ * Shows instructions that device setup must be done from the bridge.
+ * Browser CORS restrictions prevent PWA from doing direct setup.
+ */
+function handleSetupNewDevice() {
+  showSetupInstructionsModal();
+}
 
 /**
  * Shows the setup instructions modal.
@@ -2061,44 +1207,16 @@ function hideSetupInstructionsModal() {
 }
 
 /**
- * Handles "I'm Connected" button - checks if on Wemo AP and enters setup mode.
- */
-async function handleSetupInstructionsContinue() {
-  hideSetupInstructionsModal();
-
-  // Show loading toast
-  showToast("Checking connection...", "info");
-
-  // Check if we're now on the Wemo AP
-  const networkMode = await detectNetworkMode();
-
-  if (networkMode === NetworkMode.SETUP_MODE) {
-    showToast("Connected to WeMo device!", "success");
-    enterSetupMode();
-  } else if (networkMode === NetworkMode.NORMAL) {
-    showToast("Still connected to home network. Please connect to the WeMo WiFi first.", "error");
-    showSetupInstructionsModal();
-  } else {
-    showToast(
-      "Unable to detect WeMo device. Make sure you're connected to the WeMo WiFi.",
-      "error"
-    );
-    showSetupInstructionsModal();
-  }
-}
-
-/**
  * Sets up setup instructions modal event listeners.
+ * Now just shows informational message about using bridge for setup.
  */
 function setupSetupInstructionsListeners() {
   if ($setupInstructionsClose) {
     $setupInstructionsClose.addEventListener("click", hideSetupInstructionsModal);
   }
   if ($setupInstructionsCancel) {
+    // "Got It" button now dismisses the modal
     $setupInstructionsCancel.addEventListener("click", hideSetupInstructionsModal);
-  }
-  if ($setupInstructionsContinue) {
-    $setupInstructionsContinue.addEventListener("click", handleSetupInstructionsContinue);
   }
   // Close on backdrop click
   $setupInstructionsModal
@@ -2155,11 +1273,12 @@ async function loadDevices() {
     state.networkMode = networkMode;
 
     if (networkMode === NetworkMode.SETUP_MODE) {
-      console.log("[App] Detected Wemo AP - entering setup mode");
+      // User is on Wemo AP - show bridge-required message
+      // PWA cannot do setup due to browser CORS restrictions
+      console.log("[App] Detected Wemo AP - showing bridge-required message");
       state.loading = false;
       renderDevices();
-      // Auto-start tests when entering setup mode
-      handleRunTests();
+      showSetupInstructionsModal();
       return;
     }
 

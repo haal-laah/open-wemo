@@ -11,6 +11,7 @@ import { logger } from "hono/logger";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { getSavedAutostartPreference, setAutostart } from "../tray/autostart";
 import { generateQRWindowHtml } from "../tray/qr-window";
+import { createSetupRoute } from "../tray/setup-window";
 import {
   generateWelcomeHtml,
   markFirstLaunchComplete,
@@ -20,6 +21,7 @@ import {
 import { toApiError } from "./errors";
 import { deviceRoutes } from "./routes/devices";
 import { discoveryRoutes } from "./routes/discovery";
+import { setupRoutes } from "./routes/setup";
 import { initStaticFiles, staticFileMiddleware } from "./static";
 
 /**
@@ -301,6 +303,7 @@ export function createApp(config: ServerConfig = {}): Hono {
   // Mount API routes
   app.route("/api/devices", deviceRoutes);
   app.route("/api/discover", discoveryRoutes);
+  app.route("/api/setup", setupRoutes);
 
   // QR code page for phone setup
   app.get("/qr", async (c) => {
@@ -318,6 +321,9 @@ export function createApp(config: ServerConfig = {}): Hono {
     });
     return c.html(html);
   });
+
+  // Device setup page (for configuring new Wemo devices' WiFi)
+  app.get("/setup", createSetupRoute(DEFAULT_CONFIG.port));
 
   // API endpoint to save welcome preferences
   app.post("/api/welcome/complete", async (c) => {

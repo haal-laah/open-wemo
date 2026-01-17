@@ -161,6 +161,10 @@ async function createSystemTray(): Promise<void> {
           console.log("[Main] Opening QR code page...");
           openInBrowser(`${getServerUrl(DEFAULT_PORT)}/qr`);
         },
+        onSetupDevice: () => {
+          console.log("[Main] Opening device setup page...");
+          openInBrowser(`${getServerUrl(DEFAULT_PORT)}/setup`);
+        },
         onDiscover: async () => {
           console.log("[Main] Running device discovery...");
           await runBackgroundDiscovery();
