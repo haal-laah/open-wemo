@@ -203,21 +203,47 @@ async function runBackgroundDiscovery(): Promise<void> {
     // Save discovered devices to database
     const db = getDatabase();
     for (const device of result.devices) {
-      const existing = db.getDeviceByHost(device.host);
-      if (!existing) {
-        db.saveDevice({
-          id: device.serialNumber || `device-${Date.now()}`,
-          name: device.name,
-          deviceType: device.deviceType,
-          host: device.host,
-          port: device.port,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-        console.log(`[Main] Saved new device: ${device.name}`);
-      } else {
-        db.updateLastSeen(existing.id);
+      const deviceId = device.serialNumber || `device-${Date.now()}`;
+
+      // Check if device exists by ID (serial number) - handles IP changes after re-setup
+      const existingById = db.getDeviceById(deviceId);
+      if (existingById) {
+        // Device exists - check if IP changed
+        if (existingById.host !== device.host || existingById.port !== device.port) {
+          console.log(
+            `[Main] Device ${device.name} IP changed: ${existingById.host}:${existingById.port} -> ${device.host}:${device.port}`
+          );
+          // Update the device with new IP
+          db.saveDevice({
+            ...existingById,
+            host: device.host,
+            port: device.port,
+            updatedAt: new Date().toISOString(),
+          });
+        } else {
+          db.updateLastSeen(existingById.id);
+        }
+        continue;
       }
+
+      // Check by host (for devices without serial numbers)
+      const existingByHost = db.getDeviceByHost(device.host);
+      if (existingByHost) {
+        db.updateLastSeen(existingByHost.id);
+        continue;
+      }
+
+      // New device - save it
+      db.saveDevice({
+        id: deviceId,
+        name: device.name,
+        deviceType: device.deviceType,
+        host: device.host,
+        port: device.port,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      console.log(`[Main] Saved new device: ${device.name}`);
     }
   } catch (error) {
     console.error("[Main] Discovery failed:", error);
