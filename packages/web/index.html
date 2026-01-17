@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" href="icons/icon.svg">
   
   <!-- Styles -->
-  <link rel="stylesheet" href="css/style.css?v=8">
+  <link rel="stylesheet" href="css/style.css?v=14">
 </head>
 <body>
   <a href="#app" class="skip-link">Skip to main content</a>
@@ -328,6 +328,10 @@
             <span class="settings-about-value">0.1.0</span>
           </div>
           <div class="settings-about-row">
+            <span class="settings-about-label">App Build</span>
+            <span class="settings-about-value" id="app-build">14</span>
+          </div>
+          <div class="settings-about-row">
             <span class="settings-about-label">Bridge Status</span>
             <span class="settings-about-value" id="bridge-status">
               <span class="status-dot status-dot-connected"></span>
@@ -349,6 +353,69 @@
     </div>
   </div>
   
+  <!-- Setup New Device Instructions Modal -->
+  <div id="setup-instructions-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="setup-instructions-title">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content ios-install-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="setup-instructions-title">Set Up New Device</h2>
+        <button class="btn btn-icon modal-close" id="setup-instructions-close" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6L6 18"/>
+            <path d="M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="ios-install-intro">To set up a new or factory-reset WeMo device:</p>
+        
+        <ol class="ios-install-steps">
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Power on the WeMo device</div>
+              <div class="ios-install-step-text">Make sure the device is blinking (indicating setup mode)</div>
+            </div>
+          </li>
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+                <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                <line x1="12" y1="20" x2="12.01" y2="20"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Connect to the WeMo WiFi</div>
+              <div class="ios-install-step-text">Open your phone's WiFi settings and connect to the network named <strong>"Wemo.XXX.XXX"</strong></div>
+            </div>
+          </li>
+          <li class="ios-install-step">
+            <div class="ios-install-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div class="ios-install-step-content">
+              <div class="ios-install-step-title">Return to this app</div>
+              <div class="ios-install-step-text">Once connected, come back here and tap "I'm Connected" below</div>
+            </div>
+          </li>
+        </ol>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="setup-instructions-cancel">Cancel</button>
+        <button class="btn btn-primary" id="setup-instructions-continue">I'm Connected</button>
+      </div>
+    </div>
+  </div>
+
   <!-- QR Code Share Modal -->
   <div id="qr-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="qr-modal-title">
     <div class="modal-backdrop"></div>
@@ -380,6 +447,6 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   
   <!-- Scripts -->
-  <script type="module" src="js/app.js?v=8"></script>
+  <script type="module" src="js/app.js?v=14"></script>
 </body>
 </html>

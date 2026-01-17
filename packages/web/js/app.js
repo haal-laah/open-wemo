@@ -3,6 +3,14 @@
  */
 
 import { api } from "./api.js";
+import {
+  NetworkMode,
+  TEST_NAMES,
+  WEMO_SETUP_URL,
+  detectNetworkMode,
+  formatTestResults,
+  runAllTests,
+} from "./setup-mode.js";
 
 // ============================================
 // State Management
@@ -14,6 +22,9 @@ const state = {
   error: null,
   isOffline: false,
   lastUpdated: null,
+  networkMode: NetworkMode.NORMAL,
+  testResults: [],
+  testsRunning: false,
   settings: {
     refreshInterval: 30000,
     theme: "dark",
@@ -65,6 +76,10 @@ const $qrModal = document.getElementById("qr-modal");
 const $qrModalClose = document.getElementById("qr-modal-close");
 const $qrCodeContainer = document.getElementById("qr-code-container");
 const $qrModalUrl = document.getElementById("qr-modal-url");
+const $setupInstructionsModal = document.getElementById("setup-instructions-modal");
+const $setupInstructionsClose = document.getElementById("setup-instructions-close");
+const $setupInstructionsCancel = document.getElementById("setup-instructions-cancel");
+const $setupInstructionsContinue = document.getElementById("setup-instructions-continue");
 
 // ============================================
 // Service Worker Registration
@@ -485,6 +500,13 @@ function renderDevices() {
   // Hide initial loading
   $initialLoading.classList.add("hidden");
 
+  // Check for setup mode first
+  if (state.networkMode === NetworkMode.SETUP_MODE) {
+    $app.innerHTML = renderSetupMode();
+    attachSetupModeListeners();
+    return;
+  }
+
   // If offline with no cached data, show offline state
   if (state.isOffline && state.devices.length === 0) {
     $app.innerHTML = renderOfflineState();
@@ -604,7 +626,7 @@ function getDeviceIcon(_deviceType) {
 }
 
 /**
- * Renders the empty state.
+ * Renders the empty state with first-run setup options.
  */
 function renderEmptyState() {
   return `
@@ -615,13 +637,33 @@ function renderEmptyState() {
           <path d="M18.4 6.6a9 9 0 1 1-12.77.04"/>
         </svg>
       </div>
-      <h2 class="empty-state-title">No devices found</h2>
+      <h2 class="empty-state-title">Welcome to Open Wemo</h2>
       <p class="empty-state-text">
-        Make sure your WeMo devices are connected to your network and tap refresh to discover them.
+        Get started by adding your WeMo devices.
       </p>
-      <button class="btn btn-primary" id="discover-btn">
-        Discover Devices
-      </button>
+      <div class="empty-state-actions">
+        <button class="btn btn-primary" id="discover-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="16"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          Find Devices on Network
+        </button>
+        <button class="btn" id="setup-new-device-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+            <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+            <line x1="12" y1="20" x2="12.01" y2="20"/>
+          </svg>
+          Set Up New Device
+        </button>
+      </div>
+      <p class="empty-state-hint">
+        <strong>Find Devices</strong> - For WeMo devices already on your WiFi<br>
+        <strong>Set Up New Device</strong> - For brand new or factory-reset devices
+      </p>
     </div>
   `;
 }
@@ -711,6 +753,303 @@ function renderOfflineBanner() {
 }
 
 // ============================================
+// Setup Mode Rendering
+// ============================================
+
+/**
+ * Renders the setup mode UI for configuring new Wemo devices.
+ */
+function renderSetupMode() {
+  const testResultsHtml = renderTestResults();
+  const summaryHtml = renderTestSummary();
+
+  return `
+    <div class="setup-mode">
+      <div class="setup-mode-header">
+        <div class="setup-mode-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+            <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+            <line x1="12" y1="20" x2="12.01" y2="20"/>
+          </svg>
+        </div>
+        <h1 class="setup-mode-title">Device Setup Mode</h1>
+        <p class="setup-mode-subtitle">
+          Connected to Wemo device access point. Running connectivity tests to determine browser capabilities.
+        </p>
+        <div class="setup-mode-target">${WEMO_SETUP_URL}</div>
+      </div>
+
+      <div class="test-results">
+        <h2 class="test-results-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <line x1="10" y1="9" x2="8" y2="9"/>
+          </svg>
+          CORS Connectivity Tests
+        </h2>
+        <div class="test-results-list" id="test-results-list" aria-live="polite" aria-atomic="false">
+          ${testResultsHtml}
+        </div>
+        ${summaryHtml}
+      </div>
+
+      <div class="test-actions">
+        <button class="btn btn-primary" id="run-tests-btn" ${state.testsRunning ? "disabled" : ""}>
+          ${state.testsRunning ? '<span class="spinner spinner-sm"></span> Running Tests...' : "Run Tests Again"}
+        </button>
+        <button class="btn" id="copy-results-btn" ${state.testResults.length === 0 ? "disabled" : ""}>
+          Copy Results
+        </button>
+      </div>
+
+      <div class="setup-mode-info">
+        <div class="setup-mode-info-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+          What do these tests mean?
+        </div>
+        <p class="setup-mode-info-text">
+          These tests check if your browser can communicate directly with the Wemo device.
+          Due to browser security (CORS), some requests may be blocked. The results help
+          determine what setup methods are available.
+        </p>
+      </div>
+
+      <div class="setup-mode-back">
+        <button class="btn" id="back-to-normal-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"/>
+            <polyline points="12 19 5 12 12 5"/>
+          </svg>
+          Back to Device List
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Renders the test results list.
+ */
+function renderTestResults() {
+  if (state.testResults.length === 0 && !state.testsRunning) {
+    return `
+      <div class="test-result-item">
+        <div class="test-result-icon is-pending">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <div class="test-result-content">
+          <div class="test-result-name">Tests not run yet</div>
+          <div class="test-result-message">Click "Run Tests Again" to start connectivity tests</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Define all tests in order (using shared constants)
+  const allTests = [
+    { name: TEST_NAMES.NO_CORS_GET },
+    { name: TEST_NAMES.CORS_GET },
+    { name: TEST_NAMES.FETCH_SCRIPT_TAG },
+    { name: TEST_NAMES.FETCH_OBJECT_TAG },
+    { name: TEST_NAMES.JSONP_CALLBACK },
+    { name: TEST_NAMES.SOAP_POST },
+    { name: TEST_NAMES.SOAP_TEXT_PLAIN },
+    { name: TEST_NAMES.SOAP_FORM_URLENCODED },
+    { name: TEST_NAMES.SEND_BEACON },
+    { name: TEST_NAMES.WEBSOCKET_PROBE },
+    { name: TEST_NAMES.WIFI_SETUP },
+  ];
+
+  return allTests
+    .map((test) => {
+      const result = state.testResults.find((r) => r.name === test.name);
+
+      if (!result) {
+        // Test hasn't run yet
+        const isPending = state.testsRunning;
+        return `
+          <div class="test-result-item ${isPending ? "is-running" : ""}">
+            <div class="test-result-icon ${isPending ? "is-running" : "is-pending"}">
+              ${
+                isPending
+                  ? '<span class="spinner spinner-sm"></span>'
+                  : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                </svg>`
+              }
+            </div>
+            <div class="test-result-content">
+              <div class="test-result-name">${escapeHtml(test.name)}</div>
+              <div class="test-result-message">${isPending ? "Waiting..." : "Pending"}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      const statusClass = result.success ? "is-pass" : "is-fail";
+      const iconSvg = result.success
+        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>`
+        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>`;
+
+      const detailsHtml = result.details
+        ? `<div class="test-result-details">${escapeHtml(result.details)}</div>`
+        : "";
+
+      const durationHtml = result.duration
+        ? `<span class="test-result-duration">${result.duration}ms</span>`
+        : "";
+
+      return `
+        <div class="test-result-item ${statusClass}">
+          <div class="test-result-icon ${statusClass}">
+            ${iconSvg}
+          </div>
+          <div class="test-result-content">
+            <div class="test-result-name">${escapeHtml(result.name)}</div>
+            <div class="test-result-message">${escapeHtml(result.message)}</div>
+            ${detailsHtml}
+          </div>
+          ${durationHtml}
+        </div>
+      `;
+    })
+    .join("");
+}
+
+/**
+ * Renders the test summary.
+ */
+function renderTestSummary() {
+  if (state.testResults.length === 0) {
+    return "";
+  }
+
+  const passCount = state.testResults.filter((r) => r.success).length;
+  const failCount = state.testResults.filter((r) => !r.success).length;
+
+  return `
+    <div class="test-summary">
+      <div class="test-summary-stat">
+        <div class="test-summary-value is-pass">${passCount}</div>
+        <div class="test-summary-label">Passed</div>
+      </div>
+      <div class="test-summary-stat">
+        <div class="test-summary-value is-fail">${failCount}</div>
+        <div class="test-summary-label">Failed</div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Attaches event listeners for setup mode UI.
+ */
+function attachSetupModeListeners() {
+  const runTestsBtn = document.getElementById("run-tests-btn");
+  const copyResultsBtn = document.getElementById("copy-results-btn");
+  const backBtn = document.getElementById("back-to-normal-btn");
+
+  if (runTestsBtn) {
+    runTestsBtn.addEventListener("click", handleRunTests);
+  }
+
+  if (copyResultsBtn) {
+    copyResultsBtn.addEventListener("click", handleCopyResults);
+  }
+
+  if (backBtn) {
+    backBtn.addEventListener("click", handleBackToNormal);
+  }
+}
+
+/**
+ * Runs the CORS connectivity tests.
+ */
+async function handleRunTests() {
+  // Guard against double-click race condition
+  if (state.testsRunning) return;
+
+  state.testsRunning = true;
+  state.testResults = [];
+  renderDevices();
+
+  try {
+    for await (const result of runAllTests()) {
+      state.testResults.push(result);
+      // Update UI after each test
+      const listEl = document.getElementById("test-results-list");
+      if (listEl) {
+        listEl.innerHTML = renderTestResults();
+      }
+      // Announce result to screen readers
+      const status = result.success ? "passed" : "failed";
+      announceToScreenReader(`Test ${result.name} ${status}`);
+    }
+  } catch (error) {
+    console.error("[App] Test error:", error);
+    showToast(`Test error: ${error.message}`, "error");
+  } finally {
+    state.testsRunning = false;
+    renderDevices();
+  }
+}
+
+/**
+ * Copies test results to clipboard.
+ */
+async function handleCopyResults() {
+  try {
+    const text = formatTestResults(state.testResults);
+    await navigator.clipboard.writeText(text);
+    showToast("Results copied to clipboard", "success");
+  } catch (error) {
+    console.error("[App] Copy failed:", error);
+    showToast("Failed to copy results", "error");
+  }
+}
+
+/**
+ * Returns to normal mode (device list).
+ */
+function handleBackToNormal() {
+  state.networkMode = NetworkMode.NORMAL;
+  state.testResults = [];
+  state.testsRunning = false;
+  loadDevices();
+}
+
+/**
+ * Enters setup mode manually (for testing or when Add Device detects Wemo AP).
+ */
+function enterSetupMode() {
+  state.networkMode = NetworkMode.SETUP_MODE;
+  state.testResults = [];
+  state.testsRunning = false;
+  state.loading = false;
+  renderDevices();
+  // Auto-start tests
+  handleRunTests();
+}
+
+// ============================================
 // Power Stats (Insight Devices)
 // ============================================
 
@@ -797,6 +1136,12 @@ function attachDeviceListeners() {
   const discoverBtn = document.getElementById("discover-btn");
   if (discoverBtn) {
     discoverBtn.addEventListener("click", handleDiscover);
+  }
+
+  // Setup new device button (for devices in AP mode)
+  const setupNewDeviceBtn = document.getElementById("setup-new-device-btn");
+  if (setupNewDeviceBtn) {
+    setupNewDeviceBtn.addEventListener("click", handleSetupNewDevice);
   }
 
   // Retry button (error state)
@@ -1098,10 +1443,101 @@ async function handleAddSelected() {
 }
 
 /**
- * Handles device discovery (from empty state button).
+ * Handles device discovery (from empty state button or Add Device button).
+ * First checks if we're connected to a Wemo AP for setup mode.
  */
 async function handleDiscover() {
+  // Check if we might be on a Wemo AP
+  const networkMode = await detectNetworkMode();
+
+  if (networkMode === NetworkMode.SETUP_MODE) {
+    // User is connected to Wemo AP - enter setup mode
+    showToast("Detected Wemo device AP - entering setup mode", "info");
+    enterSetupMode();
+    return;
+  }
+
+  // Normal discovery flow
   openDiscoveryModal();
+}
+
+/**
+ * Handles "Set Up New Device" button click.
+ * Shows instructions for connecting to Wemo AP and enters setup mode.
+ */
+function handleSetupNewDevice() {
+  // Show instructions modal for connecting to Wemo AP
+  showSetupInstructionsModal();
+}
+
+// ============================================
+// Setup Instructions Modal
+// ============================================
+
+/**
+ * Shows the setup instructions modal.
+ */
+function showSetupInstructionsModal() {
+  if ($setupInstructionsModal) {
+    $setupInstructionsModal.classList.remove("hidden");
+    trapFocus($setupInstructionsModal);
+    announceToScreenReader("Setup instructions opened");
+  }
+}
+
+/**
+ * Hides the setup instructions modal.
+ */
+function hideSetupInstructionsModal() {
+  if ($setupInstructionsModal) {
+    $setupInstructionsModal.classList.add("hidden");
+  }
+}
+
+/**
+ * Handles "I'm Connected" button - checks if on Wemo AP and enters setup mode.
+ */
+async function handleSetupInstructionsContinue() {
+  hideSetupInstructionsModal();
+
+  // Show loading toast
+  showToast("Checking connection...", "info");
+
+  // Check if we're now on the Wemo AP
+  const networkMode = await detectNetworkMode();
+
+  if (networkMode === NetworkMode.SETUP_MODE) {
+    showToast("Connected to WeMo device!", "success");
+    enterSetupMode();
+  } else if (networkMode === NetworkMode.NORMAL) {
+    showToast("Still connected to home network. Please connect to the WeMo WiFi first.", "error");
+    showSetupInstructionsModal();
+  } else {
+    showToast(
+      "Unable to detect WeMo device. Make sure you're connected to the WeMo WiFi.",
+      "error"
+    );
+    showSetupInstructionsModal();
+  }
+}
+
+/**
+ * Sets up setup instructions modal event listeners.
+ */
+function setupSetupInstructionsListeners() {
+  if ($setupInstructionsClose) {
+    $setupInstructionsClose.addEventListener("click", hideSetupInstructionsModal);
+  }
+  if ($setupInstructionsCancel) {
+    $setupInstructionsCancel.addEventListener("click", hideSetupInstructionsModal);
+  }
+  if ($setupInstructionsContinue) {
+    $setupInstructionsContinue.addEventListener("click", handleSetupInstructionsContinue);
+  }
+  // Close on backdrop click
+  $setupInstructionsModal
+    ?.querySelector(".modal-backdrop")
+    ?.addEventListener("click", hideSetupInstructionsModal);
 }
 
 /**
@@ -1138,6 +1574,7 @@ async function loadDevices() {
     state.devices = result.devices;
     state.error = null;
     state.isOffline = false;
+    state.networkMode = NetworkMode.NORMAL;
     state.lastUpdated = Date.now();
 
     // Cache devices to localStorage
@@ -1146,6 +1583,19 @@ async function loadDevices() {
     console.error("[App] Failed to load devices:", error);
     state.error = error;
     state.isOffline = true;
+
+    // Detect network mode - are we on Wemo AP?
+    const networkMode = await detectNetworkMode();
+    state.networkMode = networkMode;
+
+    if (networkMode === NetworkMode.SETUP_MODE) {
+      console.log("[App] Detected Wemo AP - entering setup mode");
+      state.loading = false;
+      renderDevices();
+      // Auto-start tests when entering setup mode
+      handleRunTests();
+      return;
+    }
 
     // Try to load from cache
     const cached = loadCachedDevices();
@@ -1508,6 +1958,9 @@ function setupEscapeKeyHandler() {
       if ($qrModal && !$qrModal.classList.contains("hidden")) {
         hideQRModal();
       }
+      if ($setupInstructionsModal && !$setupInstructionsModal.classList.contains("hidden")) {
+        hideSetupInstructionsModal();
+      }
     }
   });
 }
@@ -1662,6 +2115,9 @@ async function init() {
 
   // Set up settings listeners
   setupSettingsListeners();
+
+  // Set up setup instructions modal listeners
+  setupSetupInstructionsListeners();
 
   // Set up accessibility handlers
   setupEscapeKeyHandler();
