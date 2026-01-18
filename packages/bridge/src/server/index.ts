@@ -294,7 +294,7 @@ export function createApp(config: ServerConfig = {}): Hono {
   app.get("/api", (c) => {
     return c.json({
       name: "Open Wemo API",
-      version: "0.1.0",
+      version: "0.2.0",
       endpoints: [
         "GET /api/health",
         "GET /api/info",
