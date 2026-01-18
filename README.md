@@ -73,6 +73,7 @@ Open Wemo consists of two parts that work together:
 | Feature | Description |
 |---------|-------------|
 | **Automatic Discovery** | Finds all WeMo devices on your network with one click |
+| **Built-in Device Setup** | Configure new WeMo devices' WiFi — no Belkin app needed |
 | **Simple Toggle Control** | Tap to turn devices on or off — instant feedback |
 | **Power Monitoring** | See real-time watts and daily kWh for Insight devices |
 | **Works Offline** | App shows last-known states when bridge is unreachable |
@@ -81,7 +82,7 @@ Open Wemo consists of two parts that work together:
 | **QR Code Setup** | Scan a code to instantly set up the app on any phone |
 | **Cross-Platform** | Bridge runs on Windows, macOS, and Linux |
 | **No Cloud Required** | Everything stays on your local network — private by design |
-| **Open Source** | MIT licensed, fully transparent, community-driven |
+| **Open Source** | PolyForm NC licensed, fully transparent, community-driven |
 
 ## Supported Devices
 
@@ -184,6 +185,8 @@ If you can't scan, look at the URL shown below the QR code (like `http://192.168
 
 ### Step 3: Add Your Devices
 
+**Already have WeMo devices on your network?** You're good to go! Open Wemo will discover them automatically.
+
 1. Open the app on your phone
 2. If devices aren't showing, tap the **+** button (top right)
 3. The app scans your network for WeMo devices
@@ -191,6 +194,22 @@ If you can't scan, look at the URL shown below the QR code (like `http://192.168
 5. Tap **"Add Selected"**
 
 **That's it!** Tap any device to toggle it on or off.
+
+### Step 4: Set Up New WeMo Devices (Optional)
+
+Need to connect a brand new WeMo device to your WiFi? **You don't need the Belkin app anymore** — Open Wemo has a built-in setup wizard.
+
+> ⚠️ **Important:** Setting up new devices requires a computer with WiFi (laptop or desktop with wireless adapter). This is only needed once per device — after setup, you can run the bridge on any computer (wired or wireless).
+
+**How it works:**
+
+1. Plug in your new WeMo device (it creates its own WiFi network called "WeMo.Setup.XXX")
+2. In the system tray, right-click Open Wemo → **"Set Up New Device"**
+3. Your computer temporarily connects to the WeMo's setup network
+4. Select your home WiFi network and enter the password
+5. The WeMo device joins your network and appears in the app
+
+**Why WiFi is required:** During setup, your computer must connect directly to the WeMo device's temporary WiFi network. A wired-only PC cannot do this. Once the device is configured and on your home network, the bridge can run on any computer.
 
 ---
 
@@ -248,6 +267,7 @@ Right-click (or click on macOS) the tray icon for options:
 |-----------|-------------|
 | **Open in Browser** | Opens the web app in your desktop browser |
 | **Show QR Code** | Displays the QR code for phone setup |
+| **Set Up New Device** | Configure a new WeMo device's WiFi (requires WiFi-capable PC) |
 | **Discover Devices** | Triggers a network scan for new devices |
 | **Start on Login** | Toggle auto-start when you log in (recommended) |
 | **Quit** | Exits the bridge application |
@@ -480,3 +500,12 @@ A: The phone app will show "Bridge Offline" and disable controls. It reconnects 
 
 **Q: Is this secure?**  
 A: The bridge only listens on your local network — it's not accessible from the internet. Your WeMo devices use the same local-only security model.
+
+**Q: Do I need the Belkin app to set up new devices?**  
+A: No! Open Wemo includes a built-in setup wizard. Just plug in your new WeMo device, and use the "Set Up New Device" option in the system tray menu.
+
+**Q: Why do I need a WiFi-capable computer for device setup?**  
+A: New WeMo devices create their own WiFi network ("WeMo.Setup.XXX") that your computer must connect to directly. This is only required once per device — after setup, you can run the bridge on any computer, wired or wireless.
+
+**Q: I already have WeMo devices on my network. Do I need to do anything special?**  
+A: Nope! Just install the bridge and it will automatically discover your existing devices. The setup wizard is only for brand new devices that haven't been connected to WiFi yet.
