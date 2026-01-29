@@ -23,6 +23,7 @@ import indexHtmlPath from "../../../web/index.html" with { type: "file" };
 import apiJsPath from "../../../web/js/api.js" with { type: "file" };
 import appJsPath from "../../../web/js/app.js" with { type: "file" };
 import setupModeJsPath from "../../../web/js/setup-mode.js" with { type: "file" };
+import cryptoJsPath from "../../../web/js/vendor/crypto-js.min.js" with { type: "file" };
 import manifestJsonPath from "../../../web/manifest.json" with { type: "file" };
 import swJsPath from "../../../web/sw.js" with { type: "file" };
 
@@ -35,6 +36,7 @@ const EMBEDDED_FILES: Record<string, string> = {
   "/js/app.js": String(appJsPath),
   "/js/api.js": String(apiJsPath),
   "/js/setup-mode.js": String(setupModeJsPath),
+  "/js/vendor/crypto-js.min.js": String(cryptoJsPath),
   "/sw.js": String(swJsPath),
   "/manifest.json": String(manifestJsonPath),
   "/icons/icon.svg": String(iconSvgPath),
@@ -74,10 +76,10 @@ const fileCache = new Map<string, { content: Uint8Array; mimeType: string }>();
 
 /**
  * Detects if we're running as a compiled binary.
- * Compiled binaries have import.meta.dir containing "~BUN" or starting with "$bunfs"
+ * Compiled binaries have import.meta.dir containing "$bunfs" (may be "/$bunfs" or "$bunfs")
  */
 export function isCompiledBinary(): boolean {
-  return import.meta.dir.includes("~BUN") || import.meta.dir.startsWith("$bunfs");
+  return import.meta.dir.includes("$bunfs");
 }
 
 /**

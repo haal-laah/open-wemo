@@ -47,6 +47,7 @@ const VIRTUAL_INTERFACE_PATTERNS = [
   /\bvpn\b/i, // VPN interfaces
   /^br-/i, // Docker bridge networks
   /^veth/i, // Docker virtual ethernet
+  /^virbr/i, // libvirt/KVM virtual bridges
 ];
 
 /**
@@ -59,16 +60,17 @@ function isVirtualInterface(name: string): boolean {
 /**
  * Scores an IP address by how likely it is to be a real LAN address.
  * Higher score = more likely to be the correct local network.
+ * 192.168.x.x and 10.x.x.x are scored equally as both are common home/office ranges.
  */
 function scoreIpAddress(address: string): number {
-  // 192.168.x.x - most common home/SOHO networks
+  // 192.168.x.x - common home/SOHO networks
   if (address.startsWith("192.168.")) {
     return 100;
   }
 
-  // 10.x.x.x - common corporate and some home networks
+  // 10.x.x.x - common home and corporate networks (equally valid as 192.168)
   if (address.startsWith("10.")) {
-    return 90;
+    return 100;
   }
 
   // 172.16.x.x - 172.31.x.x - private range, but often used for virtual networks

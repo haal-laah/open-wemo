@@ -16,8 +16,8 @@ import {
 import { shouldShowWelcome } from "./tray/welcome";
 import { discoverDevices } from "./wemo/discovery";
 
-/** Default server port */
-const DEFAULT_PORT = 3000;
+/** Default server port (51515 chosen to avoid conflicts with common dev servers) */
+const DEFAULT_PORT = 51515;
 
 /** Application state */
 interface AppState {

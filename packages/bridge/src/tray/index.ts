@@ -5,8 +5,9 @@
  * Uses systray2 for cross-platform support.
  */
 
-import { readFileSync } from "node:fs";
-import { platform } from "node:os";
+import { chmodSync, existsSync, readdirSync, readFileSync } from "node:fs";
+import { homedir, platform } from "node:os";
+import { join } from "node:path";
 
 // Use require() for systray2 to handle CommonJS default export correctly in bundled binary
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -61,6 +62,41 @@ const ICON_PATHS: Record<string, { windows: string; other: string }> = {
 };
 
 /**
+ * Ensures the systray2 tray binary has execute permissions on Linux.
+ * systray2 extracts its binary to ~/.cache/node-systray/ but may not set +x.
+ */
+function ensureTrayBinaryPermissions(): void {
+  if (platform() !== "linux") {
+    return;
+  }
+
+  const cacheDir = join(homedir(), ".cache", "node-systray");
+  if (!existsSync(cacheDir)) {
+    return;
+  }
+
+  try {
+    // Find all version directories
+    const entries = readdirSync(cacheDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const trayBinary = join(cacheDir, entry.name, "tray_linux_release");
+        if (existsSync(trayBinary)) {
+          try {
+            // Add execute permission (0o755 = rwxr-xr-x)
+            chmodSync(trayBinary, 0o755);
+          } catch {
+            // Ignore errors - we tried our best
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore errors when listing cache directory
+  }
+}
+
+/**
  * Load icon as base64 string.
  * Uses .ico on Windows, .png on macOS/Linux.
  * Icons are embedded in the binary via Bun's file embedding.
@@ -107,6 +143,9 @@ export class AppTray {
       console.warn("[Tray] Tray already created");
       return;
     }
+
+    // Fix tray binary permissions on Linux before creating systray
+    ensureTrayBinaryPermissions();
 
     this.menuItems = menuItems;
 

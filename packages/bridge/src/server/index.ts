@@ -229,7 +229,7 @@ function generateDebugInstallPage(platform: "android" | "ios"): string {
  * Server configuration options.
  */
 export interface ServerConfig {
-  /** Port to listen on (default: 3000) */
+  /** Port to listen on (default: 51515) */
   port?: number;
   /** Path to static files directory (default: ../web) */
   staticDir?: string;
@@ -241,7 +241,7 @@ export interface ServerConfig {
  * Default configuration values.
  */
 const DEFAULT_CONFIG: Required<ServerConfig> = {
-  port: 3000,
+  port: 51515,
   staticDir: "../web",
   enableLogging: true,
 };

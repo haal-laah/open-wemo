@@ -5,7 +5,7 @@ The Open Wemo Bridge exposes a REST API for device management and control.
 ## Base URL
 
 ```
-http://<bridge-ip>:3000/api
+http://<bridge-ip>:51515/api
 ```
 
 The bridge IP is typically your computer's local IP address (e.g., `192.168.1.100`).
@@ -415,16 +415,16 @@ Scans the local network for WeMo devices using SSDP.
 
 ```bash
 # List devices
-curl http://192.168.1.100:3000/api/devices
+curl http://192.168.1.100:51515/api/devices
 
 # Turn on a device
-curl -X POST http://192.168.1.100:3000/api/devices/uuid:Socket-1_0-XXXXX/on
+curl -X POST http://192.168.1.100:51515/api/devices/uuid:Socket-1_0-XXXXX/on
 
 # Discover devices
-curl http://192.168.1.100:3000/api/discover?timeout=10000
+curl http://192.168.1.100:51515/api/discover?timeout=10000
 
 # Add a device manually
-curl -X POST http://192.168.1.100:3000/api/devices \
+curl -X POST http://192.168.1.100:51515/api/devices \
   -H "Content-Type: application/json" \
   -d '{"name": "Kitchen Light", "host": "192.168.1.51"}'
 ```
@@ -432,7 +432,7 @@ curl -X POST http://192.168.1.100:3000/api/devices \
 ### JavaScript
 
 ```javascript
-const API = 'http://192.168.1.100:3000/api';
+const API = 'http://192.168.1.100:51515/api';
 
 // List devices with state
 const { devices } = await fetch(`${API}/devices?includeState=true`)

@@ -168,7 +168,7 @@ The phone app is a **Progressive Web App (PWA)** — it installs like a native a
 
 **Option B: Type the URL**
 
-If you can't scan, look at the URL shown below the QR code (like `http://192.168.1.100:3000`) and type it into your phone's browser.
+If you can't scan, look at the URL shown below the QR code (like `http://192.168.1.100:51515`) and type it into your phone's browser.
 
 **Installing on iPhone/iPad:**
 1. Open the link in **Safari** (not Chrome)
@@ -283,7 +283,7 @@ Right-click (or click on macOS) the tray icon for options:
 - **Check your network**: WeMo devices and your computer must be on the same Wi-Fi network
 - **Wait for devices to boot**: WeMo devices can take 30-60 seconds after power-on to respond
 - **Check device connectivity**: Make sure the LED on your WeMo device is solid (not blinking)
-- **Firewall**: Ensure your firewall allows UDP port 1900 (for device discovery) and the bridge port (default 3000)
+- **Firewall**: Ensure your firewall allows UDP port 1900 (for device discovery) and the bridge port (default 51515)
 
 ### Device shows "Offline"
 
@@ -301,9 +301,30 @@ Right-click (or click on macOS) the tray icon for options:
 
 ### Bridge won't start
 
-- **Port conflict**: Another app might be using port 3000. The bridge will show an error.
+- **Port conflict**: Another app might be using port 51515. The bridge will show an error.
 - **Antivirus blocking**: Some antivirus software blocks unknown executables. Add an exception.
 - **macOS Gatekeeper**: Right-click → Open the first time, or allow in Security preferences.
+
+### Linux: System tray icon not appearing
+
+The system tray requires `libayatana-appindicator` on most Linux distributions:
+
+```bash
+# Ubuntu/Debian
+sudo apt install libayatana-appindicator3-1
+
+# Fedora
+sudo dnf install libayatana-appindicator-gtk3
+
+# Arch
+sudo pacman -S libayatana-appindicator
+```
+
+If the tray still doesn't appear, the tray helper binary may need execute permissions:
+
+```bash
+chmod +x ~/.cache/node-systray/*/tray_linux_release
+```
 
 ### Power monitoring shows wrong values
 
@@ -347,7 +368,7 @@ bun install
 bun run dev
 ```
 
-The bridge starts on `http://localhost:3000`. Open this URL in a browser to test the web app.
+The bridge starts on `http://localhost:51515`. Open this URL in a browser to test the web app.
 
 ### Production Build
 
